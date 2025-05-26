@@ -1,5 +1,7 @@
 package com.forestfull;
 
+import java.util.LinkedHashMap;
+
 /**
  * com.forestfull
  *
@@ -8,14 +10,34 @@ package com.forestfull;
  */
 public class ConvertType {
 
-    public static ValueObject from() {
-
+    public static ValueObject from(Object instance) {
+        return new ValueObject(instance);
     }
+
 
     public static class ValueObject {
 
+        private final Object instance;
 
+        private ValueObject(Object instance) {
+            this.instance = instance;
+        }
+
+        public <T> T to(Class<T> type) {
+            return (T) instance;
+        }
+
+        public ConvertedMap toMap() {
+            return new ConvertedMap();
+        }
 
     }
 
+    public static class ConvertedMap extends LinkedHashMap<String, Object> {
+
+        public ConvertedMap putOver(String key, Object value) {
+            super.put(key, value);
+            return this;
+        }
+    }
 }
