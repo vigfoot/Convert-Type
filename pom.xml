@@ -4,10 +4,38 @@
                              http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
     <modelVersion>4.0.0</modelVersion>
-
     <groupId>com.forestfull</groupId>
     <artifactId>convert type</artifactId>
     <version>1.0.0</version>
+
+    <name>Convert Type</name>
+    <description>All classes you want to use are available</description>
+    <url>https://github.com/forestfull/Convert-Type</url>
+
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <email>vigfoot@forestfull.com</email>
+            <id>vigfoot</id>
+            <name>vigfoot</name>
+            <url>https://vigfoot.com</url>
+            <organization>forestfull</organization>
+            <organizationUrl>https://forestfull.com</organizationUrl>
+            <timezone>KST</timezone>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com:forestfull/Convert-Type.git</connection>
+        <developerConnection>scm:git:ssh://github.com:forestfull/Convert-Type.git</developerConnection>
+        <url>https://github.com/forestfull/Convert-Type/tree/master</url>
+    </scm>
 
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>

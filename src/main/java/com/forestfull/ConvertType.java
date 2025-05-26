@@ -8,6 +8,14 @@ package com.forestfull;
  */
 public class ConvertType {
 
+    public static ValueObject from() {
 
+    }
+
+    public static class ValueObject {
+
+
+
+    }
 
 }
