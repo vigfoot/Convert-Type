@@ -27,19 +27,23 @@ public class ConvertType {
 
         public <T> T to(Class<T> clazz) {
             Constructor<T> constructor = null;
-            T instance = null;
+            T newInstance = null;
             try {
                 constructor = clazz.getDeclaredConstructor();
                 constructor.setAccessible(true);
-                instance = constructor.newInstance();
+                newInstance = constructor.newInstance();
+
+
+
+
+
             } catch (InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
                 //TODO: 보충 필요
             } finally {
                 if (constructor != null) constructor.setAccessible(false);
-
             }
 
-            return instance;
+            return newInstance;
         }
 
         public ConvertedMap toMap() {
