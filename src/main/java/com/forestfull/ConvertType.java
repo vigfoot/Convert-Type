@@ -1,13 +1,13 @@
 package com.forestfull;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * com.forestfull
@@ -75,14 +75,8 @@ public class ConvertType {
     }
 
     public static class ConvertedMap extends LinkedHashMap<String, Object> {
-        private static Predicate<Object> isToArray = o -> {
-            if (o == null) return false;
-            if ("".equals(o)) return false;
-            if (String.valueOf(o).trim().isEmpty()) return false;
-            if (o instanceof List || o.getClass().isArray()) return true;
-
-            return false;
-        };
+        private static final Predicate<Object> isArray = o -> o instanceof List || o.getClass().isArray();
+        private static final Predicate<Object> isEmptyString = o -> "".equals(o) || String.valueOf(o).trim().isEmpty();
 
         public ConvertedMap putOver(String key, Object value) {
             super.put(key, value);
@@ -93,19 +87,66 @@ public class ConvertType {
             return toJsonString(super.entrySet());
         }
 
-        private String toJsonString(Set<Map.Entry<String, Object>> map) {
-            StringBuilder builder = new StringBuilder();
-            builder.append("{");
-            for (Map.Entry<String, Object> entry : super.entrySet()) {
-                if (isToArray.test(entry.getValue())) {
-                    // 재귀 필요
-                } else {
+        private String toJsonString(Object listValue) {
+            return "["
+                    + Stream.of(listValue)
+                    .map(obj -> {
+                        final StringBuilder builder = new StringBuilder();
 
-                }
-            }
-            builder.append("}");
+                        if (obj == null) {
+                            builder.append("null");
 
-            return builder.toString();
+                        } else if (isArray.test(obj)) {
+                            builder.append("\"")
+                                    .append(toJsonString(obj))
+                                    .append("\"");
+
+                        } else if (obj instanceof Map) {
+
+                        } else if (obj instanceof Set) {
+
+                        } else {
+                            builder.append("\"")
+                                    .append(obj)
+                                    .append("\"");
+                        }
+
+                        return builder.toString();
+                    })
+                    .collect(Collectors.joining(","))
+                    + "]";
+        }
+
+        private String toJsonString(Set<Map.Entry<String, Object>> entrySet) {
+            return "{"
+                    + entrySet.stream()
+                    .map(e -> {
+                        final StringBuilder builder = new StringBuilder();
+                        builder.append("\"")
+                                .append(e.getKey())
+                                .append("\"")
+                                .append(":");
+
+                        if (e.getValue() == null) {
+                            builder.append("null");
+                        } else if (isArray.test(e.getValue())) {
+                            builder.append("\"")
+                                    .append(toJsonString(e.getValue()))
+                                    .append("\"");
+                        } else if (e.getValue() instanceof Map) {
+                        } else if (e.getValue() instanceof Set) {
+
+                        } else {
+                            builder.append("\"")
+                                    .append(e.getValue())
+                                    .append("\"");
+                        }
+
+                        return builder.toString();
+                    })
+                    .collect(Collectors.joining(","))
+                    + "}"
+                    ;
         }
     }
 }
