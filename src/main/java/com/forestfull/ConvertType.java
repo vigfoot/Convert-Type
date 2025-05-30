@@ -87,33 +87,37 @@ public class ConvertType {
             return toJsonString(super.entrySet());
         }
 
+        private String getCommonData(Object value){
+            final StringBuilder builder = new StringBuilder();
+
+            if (value == null) {
+                builder.append("null");
+
+            } else if (isArray.test(value)) {
+//                builder.append(toJsonString(value)); TODO: 재귀방지 필요
+
+            } else if (value instanceof Integer
+                    || value instanceof Long
+                    || value instanceof Float
+                    || value instanceof Double
+                    || value instanceof Byte
+                    || value instanceof Boolean
+            ) {
+                builder.append(value);
+
+            } else {
+                builder.append("\"")
+                        .append(value)
+                        .append("\"");
+            }
+
+            return builder.toString();
+        }
+
         private String toJsonString(Object listValue) {
             return "["
                     + Stream.of(listValue)
-                    .map(obj -> {
-                        final StringBuilder builder = new StringBuilder();
-                        System.out.println(obj.getClass());
-
-                        if (obj == null) {
-                            builder.append("null");
-
-                        } else if (obj instanceof Integer
-                                || obj instanceof Long
-                                || obj instanceof Float
-                                || obj instanceof Double
-                                || obj instanceof Byte
-                                || obj instanceof Boolean
-                        ) {
-                            builder.append(obj);
-
-                        } else {
-                            builder.append("\"")
-                                    .append(obj)
-                                    .append("\"");
-                        }
-
-                        return builder.toString();
-                    })
+                    .map(this::getCommonData)
                     .collect(Collectors.joining(","))
                     + "]";
         }
@@ -131,18 +135,6 @@ public class ConvertType {
                         if (e.getValue() == null) {
                             builder.append("null");
 
-                        } else if (isArray.test(e.getValue())) {
-                            builder.append(toJsonString(e.getValue()));
-
-                        } else if (e.getValue() instanceof Integer
-                                || e.getValue() instanceof Long
-                                || e.getValue() instanceof Float
-                                || e.getValue() instanceof Double
-                                || e.getValue() instanceof Byte
-                                || e.getValue() instanceof Boolean
-                        ) {
-                            builder.append(e.getValue());
-
                         } else if (e.getValue() instanceof Map) {
                             builder.append("\"")
                                     .append(e.getKey())
@@ -158,9 +150,8 @@ public class ConvertType {
                                     .append(toJsonString((ConvertType.from(e.getValue()).toMap()).entrySet()));
 
                         } else {
-                            builder.append("\"")
-                                    .append(e.getValue())
-                                    .append("\"");
+                            builder.append(getCommonData(e.getValue()));
+
                         }
 
                         return builder.toString();
