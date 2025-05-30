@@ -2,14 +2,12 @@ package com.forestfull;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.function.Predicate;
 
 /**
  * com.forestfull
@@ -22,7 +20,6 @@ public class ConvertType {
     public static ValueObject from(Object instance) {
         return new ValueObject(instance);
     }
-
 
     public static class ValueObject {
 
@@ -78,10 +75,37 @@ public class ConvertType {
     }
 
     public static class ConvertedMap extends LinkedHashMap<String, Object> {
+        private static Predicate<Object> isToArray = o -> {
+            if (o == null) return false;
+            if ("".equals(o)) return false;
+            if (String.valueOf(o).trim().isEmpty()) return false;
+            if (o instanceof List || o.getClass().isArray()) return true;
+
+            return false;
+        };
 
         public ConvertedMap putOver(String key, Object value) {
             super.put(key, value);
             return this;
+        }
+
+        public String toJsonString() {
+            return toJsonString(super.entrySet());
+        }
+
+        private String toJsonString(Set<Map.Entry<String, Object>> map) {
+            StringBuilder builder = new StringBuilder();
+            builder.append("{");
+            for (Map.Entry<String, Object> entry : super.entrySet()) {
+                if (isToArray.test(entry.getValue())) {
+                    // 재귀 필요
+                } else {
+
+                }
+            }
+            builder.append("}");
+
+            return builder.toString();
         }
     }
 }
