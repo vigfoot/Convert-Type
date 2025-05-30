@@ -1,26 +1,53 @@
 package com.forestfull;
 
-import java.lang.reflect.Array;
+import com.forestfull.vo.ConvertedMap;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
- * com.forestfull
+ * ConvertType 개체·객체 변환과 JSON 정보 보유가 가능한 기능을 자본적으로 지정하고 만들어진 라이브러리입니다.
+ * <p>
+ * ValueObject 가상 하여 여러 클래스 간의 변환과 보유가 가능\uud55c to(), toMap()과 JSON 인스턴스를 toJsonString() 방식으로 자동 합치할 수 있습니다.
+ *
+ * <p><strong>목적</strong>: 자바 리플렉션을 활용하여 클래스가 다른 객체로 자동 변환되고, 변환 결과가 JSON 형식으로 변경되고, 반환되게 만들어 줍니다.
+ *
+ * <p><strong>예시</strong>:
+ * <pre>{@code
+ * class A { int[] arr = {1, 2}; String s = "hi"; }
+ * class B { int[] arr; String s; }
+ *
+ * B b = ConvertType.from(new A()).to(B.class);
+ * System.out.println(Arrays.toString(b.arr)); // [1, 2]
+ * System.out.println(b.s); // "hi"
+ *
+ * ConvertedMap map = ConvertType.from(new A()).toMap();
+ * System.out.println(map.toJsonString());
+ * // {
+ * //   "arr": [1, 2],
+ * //   "s": "hi"
+ * // }
+ * }</pre>
  *
  * @author vigfoot
- * @version 2025-05-27
  */
 public class ConvertType {
 
+    /**
+     * 여러 DTO 객체 각에 대해 ValueObject 바인드를 생성합니다.
+     *
+     * @param instance 변환 대상 객체
+     * @return ValueObject 인스턴스
+     */
     public static ValueObject from(Object instance) {
         return new ValueObject(instance);
     }
 
+    /**
+     * 자동 클래스 객체를 변환할 수 있는 ValueObject 클래스
+     */
     public static class ValueObject {
 
         private final Object instance;
@@ -43,6 +70,13 @@ public class ConvertType {
             this.instance = instance;
         }
 
+        /**
+         * 변환 클래스를 지정하고, 해당 클래스 인스턴스로 변환합니다.
+         *
+         * @param clazz 변환 발생 클래스
+         * @return 변환된 객체
+         * @param <T> 변환 클래의 파이프
+         */
         public <T> T to(Class<T> clazz) {
             Constructor<T> constructor = null;
             T newInstance = null;
@@ -69,107 +103,13 @@ public class ConvertType {
             return newInstance;
         }
 
+        /**
+         * 변환된 객체를 Map 구조로 바꾸어 주고, JSON 형식으로도 이여진 수 있게합니다.
+         *
+         * @return ConvertedMap 형식의 데이터
+         */
         public ConvertedMap toMap() {
             return toMapFunction.apply(instance);
-        }
-    }
-
-    public static class ConvertedMap extends LinkedHashMap<String, Object> {
-        private static final Predicate<Object> isArray = o -> o instanceof List || o.getClass().isArray();
-        private static final Predicate<Object> isEmptyString = o -> "".equals(o) || String.valueOf(o).trim().isEmpty();
-
-        public ConvertedMap putOver(String key, Object value) {
-            super.put(key, value);
-            return this;
-        }
-
-        public String toJsonString() {
-            return toJsonString(super.entrySet());
-        }
-
-        private String getCommonData(Object value) {
-            final StringBuilder builder = new StringBuilder();
-
-            if (value == null) {
-                builder.append("null");
-
-            } else if (isArray.test(value)) {
-                try {
-                    for (Object o : (List) value) builder.append(toJsonString(o));
-                } catch (ClassCastException e) {
-                    for (int i = 0; i < Array.getLength(value); i++)
-                        builder.append(toJsonString(Array.get(value, i)));
-                }
-
-            } else if (value instanceof Integer
-                    || value instanceof Long
-                    || value instanceof Float
-                    || value instanceof Double
-                    || value instanceof Byte
-                    || value instanceof Boolean
-            ) {
-                builder.append(value);
-
-            } else if (value instanceof Map) {
-                builder.append(toJsonString(((ConvertedMap) value).entrySet()));
-
-            } else if (!value.getClass().getPackage().getName().startsWith("java.")) {
-                builder.append(toJsonString((ConvertType.from(value).toMap()).entrySet()));
-
-            } else {
-                builder.append("\"")
-                        .append(value)
-                        .append("\"");
-            }
-
-            return builder.toString();
-        }
-
-        private String toJsonString(Object listValue) {
-            return "["
-                    + Stream.of(listValue)
-                    .map(this::getCommonData)
-                    .collect(Collectors.joining(","))
-                    + "]";
-        }
-
-        private String toJsonString(Set<Map.Entry<String, Object>> entrySet) {
-            return "{"
-                    + entrySet.stream()
-                    .map(e -> {
-                        final StringBuilder builder = new StringBuilder();
-                        builder.append("\"")
-                                .append(e.getKey())
-                                .append("\"")
-                                .append(":");
-
-                        if (e.getValue() == null) {
-                            builder.append("null");
-
-                        } else if (e.getValue() instanceof Map) {
-                            builder.append("\"")
-                                    .append(e.getKey())
-                                    .append("\"")
-                                    .append(":")
-                                    .append(toJsonString(((Map) e.getValue()).entrySet()));
-
-                        } else if (e.getValue().getClass().getPackage() != null && !e.getValue().getClass().getPackage().getName().startsWith("java.")) {
-                            builder.append("\"")
-                                    .append(e.getKey())
-                                    .append("\"")
-                                    .append(":")
-                                    .append(toJsonString((ConvertType.from(e.getValue()).toMap()).entrySet()));
-
-                        } else {
-                            builder.append(getCommonData(e.getValue()));
-
-                        }
-
-                        return builder.toString();
-                    })
-                    .collect(Collectors.joining(","))
-                    + "}"
-                    ;
         }
     }
 }
