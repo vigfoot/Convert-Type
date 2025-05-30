@@ -87,15 +87,16 @@ public class ConvertType {
             return toJsonString(super.entrySet());
         }
 
-        private String getCommonData(Object value){
+        private String getCommonData(Object value) {
             final StringBuilder builder = new StringBuilder();
 
             if (value == null) {
                 builder.append("null");
 
             } else if (isArray.test(value)) {
-//                builder.append(toJsonString(value)); TODO: 재귀방지 필요
-
+                for (Object o : (List) value) {
+                    builder.append(toJsonString(o));
+                }
             } else if (value instanceof Integer
                     || value instanceof Long
                     || value instanceof Float
@@ -104,6 +105,12 @@ public class ConvertType {
                     || value instanceof Boolean
             ) {
                 builder.append(value);
+
+            } else if (value instanceof Map) {
+                builder.append(toJsonString(((ConvertedMap) value).entrySet()));
+
+            } else if (!value.getClass().getPackage().getName().startsWith("java.")) {
+                builder.append(toJsonString((ConvertType.from(value).toMap()).entrySet()));
 
             } else {
                 builder.append("\"")
