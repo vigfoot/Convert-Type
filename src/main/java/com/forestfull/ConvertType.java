@@ -94,9 +94,13 @@ public class ConvertType {
                 builder.append("null");
 
             } else if (isArray.test(value)) {
-                for (Object o : (List) value) {
-                    builder.append(toJsonString(o));
+                try {
+                    for (Object o : (List) value) builder.append(toJsonString(o));
+                } catch (ClassCastException e) {
+                    for (int i = 0; i < Array.getLength(value); i++)
+                        builder.append(toJsonString(Array.get(value, i)));
                 }
+
             } else if (value instanceof Integer
                     || value instanceof Long
                     || value instanceof Float
@@ -149,7 +153,7 @@ public class ConvertType {
                                     .append(":")
                                     .append(toJsonString(((Map) e.getValue()).entrySet()));
 
-                        } else if (!e.getValue().getClass().getPackage().getName().startsWith("java.")) {
+                        } else if (e.getValue().getClass().getPackage() != null && !e.getValue().getClass().getPackage().getName().startsWith("java.")) {
                             builder.append("\"")
                                     .append(e.getKey())
                                     .append("\"")
