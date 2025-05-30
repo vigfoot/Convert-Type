@@ -1,8 +1,12 @@
 package com.forestfull;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * com.forestfull
@@ -33,12 +37,24 @@ public class ConvertType {
                 constructor.setAccessible(true);
                 newInstance = constructor.newInstance();
 
+                final Map<String, Object> instanceMap = Stream.of(instance.getClass().getDeclaredFields())
+                        .collect(Collectors.toMap(Field::getName, field -> {
+                            try {
+                                return field.get(instance);
+                            } catch (IllegalAccessException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }));
 
-
-
+                for (Field field : clazz.getDeclaredFields()) {
+                    final String name = field.getName();
+                    field.setAccessible(true);
+                    field.set(newInstance, instanceMap.get(name));
+                    field.setAccessible(false);
+                }
 
             } catch (InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
-                //TODO: 보충 필요
+                e.printStackTrace();
             } finally {
                 if (constructor != null) constructor.setAccessible(false);
             }
