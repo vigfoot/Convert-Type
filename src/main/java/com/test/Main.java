@@ -1,4 +1,6 @@
-package com.forestfull;
+package com.test;
+
+import com.forestfull.ConvertType;
 
 public class Main {
 
@@ -19,5 +21,7 @@ public class Main {
         DTO2 dto2 = ConvertType.from(new DTO1()).to(DTO2.class);
         System.out.println(dto2.iii + dto2.string);
 
+        ConvertType.ConvertedMap map = ConvertType.from(new DTO1()).toMap();
+        System.out.println(map.get("iii") + " " + map.get("string"));
     }
 }

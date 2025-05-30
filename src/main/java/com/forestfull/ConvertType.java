@@ -5,6 +5,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -21,9 +22,23 @@ public class ConvertType {
     }
 
 
-    static class ValueObject {
+    public static class ValueObject {
 
         private final Object instance;
+
+        private static final Function<Object, ConvertedMap> toMapFunction = instance -> {
+            final ConvertedMap map = new ConvertedMap();
+            for (Field field : instance.getClass().getDeclaredFields()) {
+                try {
+                    field.setAccessible(true);
+                    map.put(field.getName(), field.get(instance));
+                    field.setAccessible(false);
+                } catch (IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return map;
+        };
 
         private ValueObject(Object instance) {
             this.instance = instance;
@@ -37,14 +52,7 @@ public class ConvertType {
                 constructor.setAccessible(true);
                 newInstance = constructor.newInstance();
 
-                final Map<String, Object> instanceMap = Stream.of(instance.getClass().getDeclaredFields())
-                        .collect(Collectors.toMap(Field::getName, field -> {
-                            try {
-                                return field.get(instance);
-                            } catch (IllegalAccessException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }));
+                final Map<String, Object> instanceMap = toMapFunction.apply(instance);
 
                 for (Field field : clazz.getDeclaredFields()) {
                     final String name = field.getName();
@@ -63,12 +71,12 @@ public class ConvertType {
         }
 
         public ConvertedMap toMap() {
-            return new ConvertedMap();
+            return toMapFunction.apply(instance);
         }
 
     }
 
-    private static class ConvertedMap extends LinkedHashMap<String, Object> {
+    public static class ConvertedMap extends LinkedHashMap<String, Object> {
 
         public ConvertedMap putOver(String key, Object value) {
             super.put(key, value);
