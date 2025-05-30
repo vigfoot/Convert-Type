@@ -17,7 +17,7 @@ public class ConvertType {
     }
 
 
-    public static class ValueObject {
+    static class ValueObject {
 
         private final Object instance;
 
@@ -52,7 +52,7 @@ public class ConvertType {
 
     }
 
-    public static class ConvertedMap extends LinkedHashMap<String, Object> {
+    private static class ConvertedMap extends LinkedHashMap<String, Object> {
 
         public ConvertedMap putOver(String key, Object value) {
             super.put(key, value);
