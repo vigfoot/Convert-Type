@@ -97,13 +97,7 @@ public class ConvertType {
                             builder.append("null");
 
                         } else if (isArray.test(obj)) {
-                            builder.append("\"")
-                                    .append(toJsonString(obj))
-                                    .append("\"");
-
-                        } else if (obj instanceof Map) {
-
-                        } else if (obj instanceof Set) {
+                            builder.append(toJsonString(obj));
 
                         } else {
                             builder.append("\"")
@@ -129,12 +123,25 @@ public class ConvertType {
 
                         if (e.getValue() == null) {
                             builder.append("null");
+
                         } else if (isArray.test(e.getValue())) {
-                            builder.append("\"")
-                                    .append(toJsonString(e.getValue()))
-                                    .append("\"");
+                            builder.append(toJsonString(e.getValue()));
+
+                        } else if (e.getValue() instanceof Integer
+                                || e.getValue() instanceof Long
+                                || e.getValue() instanceof Float
+                                || e.getValue() instanceof Double
+                                || e.getValue() instanceof Byte
+                                || e.getValue() instanceof Boolean
+                        ) {
+                            builder.append(e.getValue());
+
                         } else if (e.getValue() instanceof Map) {
-                        } else if (e.getValue() instanceof Set) {
+                            builder.append("\"")
+                                    .append(e.getKey())
+                                    .append("\"")
+                                    .append(":")
+                                    .append(toJsonString(((Map) e.getValue()).entrySet()));
 
                         } else {
                             builder.append("\"")

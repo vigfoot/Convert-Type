@@ -23,5 +23,6 @@ public class Main {
 
         ConvertType.ConvertedMap map = ConvertType.from(new DTO1()).toMap();
         System.out.println(map.get("iii") + " " + map.get("string"));
+        System.out.println(map.toJsonString());
     }
 }
