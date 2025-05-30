@@ -2,11 +2,21 @@ package com.test;
 
 import com.forestfull.ConvertType;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 public class Main {
 
     public static class DTO1{
         String string = "test";
         int iii = 0;
+        List<DTO3> dto3List = Collections.singletonList(new DTO3());
+    }
+
+    public static class DTO3{
+        String string = "test";
+        DTO2 iiid;
 
     }
 

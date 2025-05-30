@@ -92,12 +92,19 @@ public class ConvertType {
                     + Stream.of(listValue)
                     .map(obj -> {
                         final StringBuilder builder = new StringBuilder();
+                        System.out.println(obj.getClass());
 
                         if (obj == null) {
                             builder.append("null");
 
-                        } else if (isArray.test(obj)) {
-                            builder.append(toJsonString(obj));
+                        } else if (obj instanceof Integer
+                                || obj instanceof Long
+                                || obj instanceof Float
+                                || obj instanceof Double
+                                || obj instanceof Byte
+                                || obj instanceof Boolean
+                        ) {
+                            builder.append(obj);
 
                         } else {
                             builder.append("\"")
@@ -142,6 +149,13 @@ public class ConvertType {
                                     .append("\"")
                                     .append(":")
                                     .append(toJsonString(((Map) e.getValue()).entrySet()));
+
+                        } else if (!e.getValue().getClass().getPackage().getName().startsWith("java.")) {
+                            builder.append("\"")
+                                    .append(e.getKey())
+                                    .append("\"")
+                                    .append(":")
+                                    .append(toJsonString((ConvertType.from(e.getValue()).toMap()).entrySet()));
 
                         } else {
                             builder.append("\"")
