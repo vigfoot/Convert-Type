@@ -5,6 +5,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -26,15 +28,15 @@ public class ConvertType {
 
         private final Object instance;
 
-        private static final Function<Object, ConvertedMap> toMapFunction = instance -> {
+        private static final Function<Object, ConvertedMap> toMapFunction = i -> {
             final ConvertedMap map = new ConvertedMap();
-            for (Field field : instance.getClass().getDeclaredFields()) {
+            for (Field field : i.getClass().getDeclaredFields()) {
                 try {
                     field.setAccessible(true);
-                    map.put(field.getName(), field.get(instance));
+                    map.put(field.getName(), field.get(i));
                     field.setAccessible(false);
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
+                } catch (Exception e) {
+                    e.printStackTrace(System.err);
                 }
             }
             return map;
@@ -61,8 +63,8 @@ public class ConvertType {
                     field.setAccessible(false);
                 }
 
-            } catch (InvocationTargetException | InstantiationException | IllegalAccessException | NoSuchMethodException e) {
-                e.printStackTrace();
+            } catch (Exception e) {
+                e.printStackTrace(System.err);
             } finally {
                 if (constructor != null) constructor.setAccessible(false);
             }
@@ -73,7 +75,6 @@ public class ConvertType {
         public ConvertedMap toMap() {
             return toMapFunction.apply(instance);
         }
-
     }
 
     public static class ConvertedMap extends LinkedHashMap<String, Object> {
