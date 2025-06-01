@@ -1,24 +1,51 @@
 # ConvertType
 
-ConvertType은 Java Reflection 기반의 경량 타입 변환 유틸리티 라이브러리입니다. DTO 간 자동 필드 매핑, JSON 포맷 변환 기능을 제공합니다.
+**ConvertType**은 Java Reflection 기반의 경량 타입 변환 유틸리티 라이브러리입니다.  
+DTO 간 자동 필드 매핑, JSON 포맷 변환 기능을 제공합니다.
+
+---
 
 ## ✨ 주요 특징
 
-* 클래스 간 **자동 필드 매핑** (이름 기반)
-* 중첩 구조 및 배열, 리스트 지원
-* **JSON 직렬화**를 위한 `ConvertedMap` 제공
-* 간단한 API로 빠르게 사용 가능
+- 클래스 간 **자동 필드 매핑** (필드명 기준)
+- **중첩 구조, 배열, 리스트** 지원
+- JSON 직렬화를 위한 `ConvertedMap` 제공
+- 최소 의존성, 간단한 API
+
+---
 
 ## 📦 설치 방법
 
-Maven/Gradle 저장소 배포 전이라면 소스 코드 직접 포함 또는 JAR 빌드 후 로컬 추가
+### Maven
 
-```bash
-# 예시: 로컬 빌드
-./gradlew build
+```xml
+<dependency>
+  <groupId>com.forestfull</groupId>
+  <artifactId>convert-Type</artifactId>
+  <version>1.0.0</version>
+</dependency>
 ```
 
+### Gradle (Kotlin DSL)
+
+```kotlin
+implementation("com.forestfull:convert-Type:1.0.0")
+```
+
+### Gradle (Groovy DSL)
+
+```groovy
+implementation 'com.forestfull:convert-Type:1.0.0'
+```
+
+> ☑️ Maven Central 등록 완료  
+> 🔗 [View on Maven Central](https://central.sonatype.com/artifact/com.forestfull/convert-Type)
+
+---
+
 ## 🚀 사용 예시
+
+### 클래스 간 변환
 
 ```java
 class Source {
@@ -41,29 +68,37 @@ System.out.println(target.name);                     // sample
 ```java
 ConvertedMap map = ConvertType.from(new Source()).toMap();
 System.out.println(map.toJsonString());
+
+// 출력 예:
 // {
 //   "numbers": [1, 2],
 //   "name": "sample"
 // }
 ```
 
-## 🧠 내부 동작
+---
 
-* `ValueObject`가 리플렉션으로 필드를 추출 후 매핑
-* `ConvertedMap`은 필드 정보를 `Map`으로 래핑 + JSON 문자열 출력
-* 기본형, 참조형, 배열, 리스트 모두 지원
+## ⚙️ 내부 구조
 
-## 🛠️ 기여 방법
-
-1. 이슈 등록 또는 풀 리퀘스트
-2. 테스트 코드 필수 작성
-3. 코드 스타일 통일 부탁드립니다
-
-## 📄 라이선스
-
-MIT License
+- `ValueObject`: 리플렉션 기반 필드 추출 및 매핑 처리
+- `ConvertedMap`: 내부 값을 Map 구조로 감싸 JSON 직렬화 지원
+- 기본형, 참조형, 배열, 리스트 모두 지원
 
 ---
 
-> 개발자: **@vigfoot**
-> lightweight conversion for Java developers
+## 🛠 기여 방법
+
+1. 이슈 등록 또는 Pull Request
+2. 테스트 코드 필수 작성
+3. 코드 스타일 통일 부탁드립니다
+
+---
+
+## 📄 라이선스
+
+Apache License, Version 2.0
+
+---
+
+> **개발자**: [@vigfoot](https://github.com/vigfoot)  
+> **오픈소스 작업 공간**: https://github.com/vigfoot/vigfoot
