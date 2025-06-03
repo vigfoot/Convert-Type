@@ -1,10 +1,7 @@
 package com.forestfull;
 
-import com.forestfull.vo.ConvertedMap;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.Map;
 import java.util.function.Function;
 
 /**
@@ -66,7 +63,7 @@ public class ConvertType {
             return map;
         };
 
-        private ValueObject(Object instance) {
+        protected ValueObject(Object instance) {
             this.instance = instance;
         }
 
@@ -85,7 +82,7 @@ public class ConvertType {
                 constructor.setAccessible(true);
                 newInstance = constructor.newInstance();
 
-                final Map<String, Object> instanceMap = toMapFunction.apply(instance);
+                final ConvertedMap instanceMap = instance instanceof ConvertedMap ? (ConvertedMap) instance : toMapFunction.apply(instance);
 
                 for (Field field : clazz.getDeclaredFields()) {
                     final String name = field.getName();

@@ -1,6 +1,4 @@
-package com.forestfull.vo;
-
-import com.forestfull.ConvertType;
+package com.forestfull;
 
 import java.lang.reflect.Array;
 import java.util.LinkedHashMap;
@@ -40,6 +38,10 @@ public class ConvertedMap extends LinkedHashMap<String, Object> {
     public ConvertedMap putOver(String key, Object value) {
         super.put(key, value);
         return this;
+    }
+
+    public <T> T to(Class<T> clazz) {
+        return new ConvertType.ValueObject(this).to(clazz);
     }
 
     public String toJsonString() {
