@@ -5,12 +5,12 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.forestfull</groupId>
-    <artifactId>convert-Type</artifactId>
+    <artifactId>convert-type</artifactId>
     <version>1.0.0</version>
 
     <name>Convert Type</name>
     <description>Seamlessly switch between classes and use them with ease</description>
-    <url>https://github.com/forestfull/Convert-Type</url>
+    <url>https://github.com/vigfoot/Convert-Type</url>
 
     <licenses>
         <license>
@@ -32,9 +32,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com:forestfull/Convert-Type.git</connection>
-        <developerConnection>scm:git:ssh://github.com:forestfull/Convert-Type.git</developerConnection>
-        <url>https://github.com/forestfull/Convert-Type/tree/master</url>
+        <connection>scm:git:git://github.com:vigfoot/Convert-Type.git</connection>
+        <developerConnection>scm:git:ssh://github.com:vigfoot/Convert-Type.git</developerConnection>
+        <url>https://github.com/vigfoot/Convert-Type/tree/master</url>
     </scm>
 
     <properties>
