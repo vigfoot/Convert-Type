@@ -39,7 +39,7 @@ implementation 'com.forestfull:convert-type:1.0.0'
 ```
 
 > ☑️ Maven Central 등록 완료  
-> 🔗 [View on Maven Central](https://central.sonatype.com/artifact/com.forestfull/convert-Type)
+> 🔗 [View on Maven Central](https://central.sonatype.com/artifact/com.forestfull/convert-type)
 
 ---
 
