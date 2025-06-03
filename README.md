@@ -21,7 +21,7 @@ DTO 간 자동 필드 매핑, JSON 포맷 변환 기능을 제공합니다.
 ```xml
 <dependency>
   <groupId>com.forestfull</groupId>
-  <artifactId>convert-Type</artifactId>
+  <artifactId>convert-type</artifactId>
   <version>1.0.0</version>
 </dependency>
 ```
@@ -29,13 +29,13 @@ DTO 간 자동 필드 매핑, JSON 포맷 변환 기능을 제공합니다.
 ### Gradle (Kotlin DSL)
 
 ```kotlin
-implementation("com.forestfull:convert-Type:1.0.0")
+implementation("com.forestfull:convert-type:1.0.0")
 ```
 
 ### Gradle (Groovy DSL)
 
 ```groovy
-implementation 'com.forestfull:convert-Type:1.0.0'
+implementation 'com.forestfull:convert-type:1.0.0'
 ```
 
 > ☑️ Maven Central 등록 완료  
