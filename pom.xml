@@ -5,12 +5,12 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.forestfull</groupId>
-    <artifactId>convert-type</artifactId>
+    <artifactId>convert_type</artifactId>
     <version>1.0.0</version>
 
     <name>Convert Type</name>
-    <description>Seamlessly switch between classes and use them with ease</description>
-    <url>https://github.com/vigfoot/Convert-Type</url>
+    <description>All classes you want to use are available</description>
+    <url>https://github.com/forestfull/Convert-Type</url>
 
     <licenses>
         <license>
@@ -32,9 +32,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com:vigfoot/Convert-Type.git</connection>
-        <developerConnection>scm:git:ssh://github.com:vigfoot/Convert-Type.git</developerConnection>
-        <url>https://github.com/vigfoot/Convert-Type/tree/master</url>
+        <connection>scm:git:git://github.com:forestfull/Convert-Type.git</connection>
+        <developerConnection>scm:git:ssh://github.com:forestfull/Convert-Type.git</developerConnection>
+        <url>https://github.com/forestfull/Convert-Type/tree/master</url>
     </scm>
 
     <properties>
@@ -42,16 +42,6 @@
         <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
 
-    <distributionManagement>
-        <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
-        </snapshotRepository>
-        <repository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-        </repository>
-    </distributionManagement>
 
     <build>
         <plugins>
