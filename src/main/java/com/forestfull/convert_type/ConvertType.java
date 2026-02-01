@@ -2,6 +2,7 @@ package com.forestfull.convert_type;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.function.Function;
 
 /**
@@ -54,7 +55,7 @@ public class ConvertType {
             for (Field field : i.getClass().getDeclaredFields()) {
                 try {
                     field.setAccessible(true);
-                    map.put(field.getName(), field.get(i));
+                    map.put(field.getName(), unProxy(field.get(i)));
                     field.setAccessible(false);
                 } catch (Exception e) {
                     e.printStackTrace(System.err);
@@ -65,6 +66,39 @@ public class ConvertType {
 
         protected ValueObject(Object instance) {
             this.instance = instance;
+        }
+
+        private static Object unProxy(Object value) {
+            if (value == null) return null;
+
+            String className = value.getClass().getName();
+            if (className.contains("hibernate") && className.contains("Proxy")) {
+                try {
+                    Method getLazyInitializer = value.getClass().getMethod("getHibernateLazyInitializer");
+                    Object initializer = getLazyInitializer.invoke(value);
+
+                    Method isUninitialized = initializer.getClass().getMethod("isUninitialized");
+                    if ((boolean) isUninitialized.invoke(initializer)) {
+                        Method initialize = initializer.getClass().getMethod("initialize");
+                        initialize.invoke(initializer);
+                    }
+
+                    Method getImplementation = initializer.getClass().getMethod("getImplementation");
+                    return getImplementation.invoke(initializer);
+
+                } catch (Exception e) {
+                    return null;
+                }
+            }
+
+            if (className.startsWith("org.hibernate.collection")) {
+                try {
+                    Method sizeMethod = value.getClass().getMethod("size");
+                    sizeMethod.invoke(value);
+                } catch (Exception ignored) {}
+            }
+
+            return value;
         }
 
         /**
