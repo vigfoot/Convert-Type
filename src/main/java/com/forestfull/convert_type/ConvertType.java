@@ -3,6 +3,7 @@ package com.forestfull.convert_type;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.*;
 import java.util.function.Function;
 
 /**
@@ -52,20 +53,44 @@ public class ConvertType {
 
         private static final Function<Object, ConvertedMap> toMapFunction = i -> {
             final ConvertedMap map = new ConvertedMap();
-            for (Field field : i.getClass().getDeclaredFields()) {
-                try {
-                    field.setAccessible(true);
-                    map.put(field.getName(), unProxy(field.get(i)));
-                    field.setAccessible(false);
-                } catch (Exception e) {
-                    e.printStackTrace(System.err);
+            Class<?> currentClass = i.getClass();
+
+            while (currentClass != Object.class) {
+                for (Field field : currentClass.getDeclaredFields()) {
+                    if (map.containsKey(field.getName())) continue;
+
+                    try {
+                        field.setAccessible(true);
+                        map.put(field.getName(), unProxy(field.get(i)));
+                        field.setAccessible(false);
+                    } catch (Exception e) {
+                        e.printStackTrace(System.err);
+                    }
                 }
+                currentClass = currentClass.getSuperclass();
             }
             return map;
         };
 
         protected ValueObject(Object instance) {
             this.instance = instance;
+        }
+
+        private static List<Field> getAllFields(Class<?> clazz) {
+            final List<Field> fieldList = new ArrayList<>();
+            getAllFields(clazz, fieldList, new HashSet<>());
+            return fieldList;
+        }
+
+        private static void getAllFields(Class<?> clazz, List<Field> fieldList, Set<String> nameSet) {
+            if (clazz == null || clazz == Object.class) return;
+
+            for (Field field : clazz.getDeclaredFields()) {
+                boolean isSuccess = nameSet.add(field.getName());
+                if (isSuccess) fieldList.add(field);
+            }
+
+            getAllFields(clazz.getSuperclass(), fieldList, nameSet);
         }
 
         private static Object unProxy(Object value) {
@@ -87,6 +112,7 @@ public class ConvertType {
                     return getImplementation.invoke(initializer);
 
                 } catch (Exception e) {
+                    e.printStackTrace(System.err);
                     return null;
                 }
             }
@@ -118,8 +144,12 @@ public class ConvertType {
 
                 final ConvertedMap instanceMap = instance instanceof ConvertedMap ? (ConvertedMap) instance : toMapFunction.apply(instance);
 
-                for (Field field : clazz.getDeclaredFields()) {
+                List<Field> allFields = getAllFields(clazz);
+
+                for (Field field : allFields) {
                     final String name = field.getName();
+                    if (!instanceMap.containsKey(name)) continue;
+
                     field.setAccessible(true);
                     field.set(newInstance, instanceMap.get(name));
                     field.setAccessible(false);
