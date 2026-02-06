@@ -49,6 +49,7 @@ public class ConvertType {
      */
     public static class ValueObject {
 
+        private final Integer LIMIT_DEPTH = 50;
         private final Object instance;
 
         private static final Function<Object, ConvertedMap> toMapFunction = i -> {
@@ -121,7 +122,8 @@ public class ConvertType {
                 try {
                     Method sizeMethod = value.getClass().getMethod("size");
                     sizeMethod.invoke(value);
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
 
             return value;
@@ -131,12 +133,21 @@ public class ConvertType {
          * 변환 클래스를 지정하고, 해당 클래스 인스턴스로 변환합니다.
          *
          * @param clazz 변환 발생 클래스
+         * @param <T>   변환 클래의 파이프
          * @return 변환된 객체
-         * @param <T> 변환 클래의 파이프
          */
         public <T> T to(Class<T> clazz) {
+            return to(clazz, LIMIT_DEPTH);
+        }
+
+        private <T> T to(Class<T> clazz, int depth) {
+            if (depth <= 0)
+                throw new RuntimeException("Too many nested objects. Please check for circular references in your class.");
+
+            depth--;
             Constructor<T> constructor = null;
             T newInstance = null;
+
             try {
                 constructor = clazz.getDeclaredConstructor();
                 constructor.setAccessible(true);
@@ -150,8 +161,42 @@ public class ConvertType {
                     final String name = field.getName();
                     if (!instanceMap.containsKey(name)) continue;
 
+                    Object value = instanceMap.get(name);
+                    if (value == null) continue;
+
                     field.setAccessible(true);
-                    field.set(newInstance, instanceMap.get(name));
+                    Class<?> fieldType = field.getType();
+
+                    if (fieldType.isAssignableFrom(value.getClass())) {
+                        field.set(newInstance, value);
+                    } else if (value instanceof Collection && Collection.class.isAssignableFrom(fieldType)) {
+                        Collection<?> sourceCol = (Collection<?>) value;
+
+                        java.lang.reflect.Type genericType = field.getGenericType();
+                        if (genericType instanceof java.lang.reflect.ParameterizedType) {
+                            java.lang.reflect.ParameterizedType pt = (java.lang.reflect.ParameterizedType) genericType;
+                            Class<?> targetItemClass = (Class<?>) pt.getActualTypeArguments()[0];
+
+                            Collection<Object> targetCol;
+                            if (Set.class.isAssignableFrom(fieldType)) {
+                                targetCol = new HashSet<>();
+                            } else {
+                                targetCol = new ArrayList<>();
+                            }
+
+                            for (Object item : sourceCol) {
+                                if (item != null) {
+                                    targetCol.add(ConvertType.from(item).to(targetItemClass, depth));
+                                } else {
+                                    targetCol.add(null);
+                                }
+                            }
+                            field.set(newInstance, targetCol);
+                        }
+                    } else {
+                        Object convertedValue = ConvertType.from(value).to(fieldType, depth);
+                        field.set(newInstance, convertedValue);
+                    }
                     field.setAccessible(false);
                 }
 
