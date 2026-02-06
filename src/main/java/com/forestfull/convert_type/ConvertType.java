@@ -149,10 +149,15 @@ public class ConvertType {
             T newInstance = null;
 
             try {
-                constructor = clazz.getDeclaredConstructor();
-                constructor.setAccessible(true);
-                newInstance = constructor.newInstance();
-
+                if (clazz.isInterface()) {
+                    System.err.println("Direct conversion to interface is not supported. Target: " + clazz.getName());
+                    return null;
+                } else {
+                    // 일반 클래스인 경우 기존처럼 생성자 호출
+                    constructor = clazz.getDeclaredConstructor();
+                    constructor.setAccessible(true);
+                    newInstance = constructor.newInstance();
+                }
                 final ConvertedMap instanceMap = instance instanceof ConvertedMap ? (ConvertedMap) instance : toMapFunction.apply(instance);
 
                 List<Field> allFields = getAllFields(clazz);

@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.forestfull</groupId>
     <artifactId>convert_type</artifactId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
 
     <name>Convert Type</name>
     <description>All classes you want to use are available</description>
