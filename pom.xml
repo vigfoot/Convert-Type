@@ -5,8 +5,8 @@
 
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.forestfull</groupId>
-    <artifactId>convert_type</artifactId>
-    <version>1.0.4</version>
+    <artifactId>convert-type</artifactId>
+    <version>1.1.0</version>
 
     <name>Convert Type</name>
     <description>All classes you want to use are available</description>
@@ -18,6 +18,14 @@
             <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
         </license>
     </licenses>
+
+    <distributionManagement>
+        <relocation>
+            <artifactId>convert-type</artifactId>
+            <version>1.1.0</version>
+            <message>Artifact ID has been corrected from underscore to hyphen.</message>
+        </relocation>
+    </distributionManagement>
 
     <developers>
         <developer>
@@ -40,7 +48,23 @@
     <properties>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <jackson.version>2.21.0</jackson.version>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>${jackson.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <version>${jackson.version}</version>
+            <scope>compile</scope>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>

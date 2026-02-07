@@ -41,7 +41,7 @@ public class ConvertedMap extends LinkedHashMap<String, Object> {
     }
 
     public <T> T to(Class<T> clazz) {
-        return new ConvertType.ValueObject(this).to(clazz);
+        return new ConvertType.ValueObject(this, false).to(clazz);
     }
 
     public String toJsonString() {
@@ -75,7 +75,7 @@ public class ConvertedMap extends LinkedHashMap<String, Object> {
             builder.append(toJsonString(((ConvertedMap) value).entrySet()));
 
         } else if (!value.getClass().getPackage().getName().startsWith("java.")) {
-            builder.append(toJsonString((ConvertType.from(value).toMap()).entrySet()));
+            builder.append(toJsonString((ConvertType.fromFull(value).toMap()).entrySet()));
 
         } else {
             builder.append("\"")
@@ -119,7 +119,7 @@ public class ConvertedMap extends LinkedHashMap<String, Object> {
                                 .append(e.getKey())
                                 .append("\"")
                                 .append(":")
-                                .append(toJsonString((ConvertType.from(e.getValue()).toMap()).entrySet()));
+                                .append(toJsonString((ConvertType.fromFull(e.getValue()).toMap()).entrySet()));
 
                     } else {
                         builder.append(getCommonData(e.getValue()));

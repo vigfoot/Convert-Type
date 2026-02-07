@@ -1,5 +1,9 @@
 package com.forestfull.convert_type;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -34,25 +38,33 @@ import java.util.function.Function;
  */
 public class ConvertType {
 
+    public static final ObjectMapper jackson = new ObjectMapper()
+            .registerModule(new JavaTimeModule())
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     /**
      * 여러 DTO 객체 각에 대해 ValueObject 바인드를 생성합니다.
      *
      * @param instance 변환 대상 객체
      * @return ValueObject 인스턴스
      */
+    public static ValueObject fromFull(Object instance) {
+        return new ValueObject(instance, true);
+    }
+
     public static ValueObject from(Object instance) {
-        return new ValueObject(instance);
+        return new ValueObject(instance, false);
     }
 
     /**
      * 자동 클래스 객체를 변환할 수 있는 ValueObject 클래스
      */
     public static class ValueObject {
-
         private final Integer LIMIT_DEPTH = 50;
         private final Object instance;
+        private final boolean isFullSearchHibernate;
 
-        private static final Function<Object, ConvertedMap> toMapFunction = i -> {
+        private final Function<Object, ConvertedMap> toMapFunction = i -> {
             final ConvertedMap map = new ConvertedMap();
             Class<?> currentClass = i.getClass();
 
@@ -73,8 +85,9 @@ public class ConvertType {
             return map;
         };
 
-        protected ValueObject(Object instance) {
+        protected ValueObject(Object instance, boolean isFullSearchHibernate) {
             this.instance = instance;
+            this.isFullSearchHibernate = isFullSearchHibernate;
         }
 
         private static List<Field> getAllFields(Class<?> clazz) {
@@ -94,34 +107,47 @@ public class ConvertType {
             getAllFields(clazz.getSuperclass(), fieldList, nameSet);
         }
 
-        private static Object unProxy(Object value) {
+        private Object unProxy(Object value) {
             if (value == null) return null;
 
-            String className = value.getClass().getName();
+            final String className = value.getClass().getName();
+
             if (className.contains("hibernate") && className.contains("Proxy")) {
                 try {
-                    Method getLazyInitializer = value.getClass().getMethod("getHibernateLazyInitializer");
-                    Object initializer = getLazyInitializer.invoke(value);
+                    final Method getLazyInitializer = value.getClass().getMethod("getHibernateLazyInitializer");
+                    final Object initializer = getLazyInitializer.invoke(value);
 
-                    Method isUninitialized = initializer.getClass().getMethod("isUninitialized");
-                    if ((boolean) isUninitialized.invoke(initializer)) {
-                        Method initialize = initializer.getClass().getMethod("initialize");
+                    final Method isUninitialized = initializer.getClass().getMethod("isUninitialized");
+                    boolean uninitialized = (boolean) isUninitialized.invoke(initializer);
+
+                    if (uninitialized) {
+                        if (!this.isFullSearchHibernate) {
+                            return null;
+                        }
+
+                        final Method initialize = initializer.getClass().getMethod("initialize");
                         initialize.invoke(initializer);
                     }
 
-                    Method getImplementation = initializer.getClass().getMethod("getImplementation");
+                    final Method getImplementation = initializer.getClass().getMethod("getImplementation");
                     return getImplementation.invoke(initializer);
 
                 } catch (Exception e) {
-                    e.printStackTrace(System.err);
                     return null;
                 }
             }
 
             if (className.startsWith("org.hibernate.collection")) {
                 try {
-                    Method sizeMethod = value.getClass().getMethod("size");
-                    sizeMethod.invoke(value);
+                    final Method wasInitialized = value.getClass().getMethod("wasInitialized");
+                    final boolean initialized = (boolean) wasInitialized.invoke(value);
+
+                    if (!initialized) {
+                        if (!this.isFullSearchHibernate) return null;
+
+                        final Method sizeMethod = value.getClass().getMethod("size");
+                        sizeMethod.invoke(value);
+                    }
                 } catch (Exception ignored) {
                 }
             }
@@ -141,17 +167,20 @@ public class ConvertType {
         }
 
         private <T> T to(Class<T> clazz, int depth) {
-            if (depth <= 0)
-                throw new RuntimeException("Too many nested objects. Please check for circular references in your class.");
+            if (depth <= 0) {
+                System.err.println("Too many nested objects. Please check for circular references in your class: " + clazz.getName() + ", depth: " + depth);
+                return null;
+            }
 
             depth--;
             Constructor<T> constructor = null;
             T newInstance = null;
 
             try {
-                if (clazz.isInterface()) {
-                    System.err.println("Direct conversion to interface is not supported. Target: " + clazz.getName());
-                    return null;
+                if (clazz.isInterface() ||
+                        java.lang.reflect.Modifier.isAbstract(clazz.getModifiers()) ||
+                        clazz.getName().startsWith("java.time")) {
+                    return jackson.convertValue(instance, clazz);
                 } else {
                     // 일반 클래스인 경우 기존처럼 생성자 호출
                     constructor = clazz.getDeclaredConstructor();
@@ -160,22 +189,22 @@ public class ConvertType {
                 }
                 final ConvertedMap instanceMap = instance instanceof ConvertedMap ? (ConvertedMap) instance : toMapFunction.apply(instance);
 
-                List<Field> allFields = getAllFields(clazz);
+                final List<Field> allFields = getAllFields(clazz);
 
                 for (Field field : allFields) {
                     final String name = field.getName();
                     if (!instanceMap.containsKey(name)) continue;
 
-                    Object value = instanceMap.get(name);
+                    final Object value = instanceMap.get(name);
                     if (value == null) continue;
 
                     field.setAccessible(true);
-                    Class<?> fieldType = field.getType();
+                    final Class<?> fieldType = field.getType();
 
                     if (fieldType.isAssignableFrom(value.getClass())) {
                         field.set(newInstance, value);
-                    } else if (value instanceof Collection && Collection.class.isAssignableFrom(fieldType)) {
-                        Collection<?> sourceCol = (Collection<?>) value;
+                    } else if (value instanceof Iterable && (Collection.class.isAssignableFrom(fieldType) || fieldType.isArray())) {
+                        Iterable<?> sourceIterable = (Iterable<?>) value;
 
                         java.lang.reflect.Type genericType = field.getGenericType();
                         if (genericType instanceof java.lang.reflect.ParameterizedType) {
@@ -185,22 +214,56 @@ public class ConvertType {
                             Collection<Object> targetCol;
                             if (Set.class.isAssignableFrom(fieldType)) {
                                 targetCol = new HashSet<>();
-                            } else {
+                            } else if (List.class.isAssignableFrom(fieldType) || fieldType.isInterface()) {
                                 targetCol = new ArrayList<>();
+                            } else {
+                                try {
+                                    targetCol = (Collection<Object>) fieldType.getDeclaredConstructor().newInstance();
+                                } catch (Exception e) {
+                                    targetCol = new ArrayList<>();
+                                }
                             }
 
-                            for (Object item : sourceCol) {
+                            for (Object item : sourceIterable) {
                                 if (item != null) {
-                                    targetCol.add(ConvertType.from(item).to(targetItemClass, depth));
+                                    targetCol.add(new ValueObject(item, this.isFullSearchHibernate).to(targetItemClass, depth));
                                 } else {
                                     targetCol.add(null);
                                 }
                             }
-                            field.set(newInstance, targetCol);
+                            if (fieldType.isArray()) {
+                                Object array = java.lang.reflect.Array.newInstance(targetItemClass, targetCol.size());
+                                int index = 0;
+                                for (Object item : targetCol) {
+                                    java.lang.reflect.Array.set(array, index++, item);
+                                }
+                                field.set(newInstance, array);
+                            } else {
+                                field.set(newInstance, targetCol);
+                            }
+                        }
+
+                    } else if (value instanceof Map && Map.class.isAssignableFrom(fieldType)) {
+                        Map<?, ?> sourceMap = (Map<?, ?>) value;
+                        Map<Object, Object> targetMap = new HashMap<>();
+
+                        java.lang.reflect.Type genericType = field.getGenericType();
+                        if (genericType instanceof java.lang.reflect.ParameterizedType) {
+                            java.lang.reflect.ParameterizedType pt = (java.lang.reflect.ParameterizedType) genericType;
+                            Class<?> valueClass = (Class<?>) pt.getActualTypeArguments()[1];
+
+                            for (Map.Entry<?, ?> entry : sourceMap.entrySet()) {
+                                Object mapValue = entry.getValue();
+                                if (mapValue != null) {
+                                    targetMap.put(entry.getKey(), new ValueObject(mapValue, this.isFullSearchHibernate).to(valueClass, depth));
+                                } else {
+                                    targetMap.put(entry.getKey(), null);
+                                }
+                            }
+                            field.set(newInstance, targetMap);
                         }
                     } else {
-                        Object convertedValue = ConvertType.from(value).to(fieldType, depth);
-                        field.set(newInstance, convertedValue);
+                        field.set(newInstance, new ValueObject(value, this.isFullSearchHibernate).to(fieldType, depth));
                     }
                     field.setAccessible(false);
                 }
