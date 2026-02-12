@@ -11,28 +11,15 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * ConvertType 개체·객체 변환과 JSON 정보 보유가 가능한 기능을 자본적으로 지정하고 만들어진 라이브러리입니다.
+ * Java Reflection과 Jackson을 결합한 고성능 하이브리드 타입 변환 라이브러리입니다.
  * <p>
- * ValueObject 가상 하여 여러 클래스 간의 변환과 보유가 가능한 to(), toMap()과 JSON 인스턴스를 toJsonString() 방식으로 자동 합치할 수 있습니다.
+ * 단순한 필드 복사를 넘어, JPA/Hibernate 엔티티의 지연 로딩(Lazy Loading) 제어와 복잡한 데이터 구조를 안전하고 스마트하게 변환합니다.
  *
- * <p><strong>목적</strong>: 자바 리플렉션을 활용하여 클래스가 다른 객체로 자동 변환되고, 변환 결과가 JSON 형식으로 변경되고, 반환되게 만들어 줍니다.
+ * <hr>
  *
- * <p><strong>예시</strong>:
- * <pre>{@code
- * class A { int[] arr = {1, 2}; String s = "hi"; }
- * class B { int[] arr; String s; }
- *
- * B b = ConvertType.from(new A()).to(B.class);
- * System.out.println(Arrays.toString(b.arr)); // [1, 2]
- * System.out.println(b.s); // "hi"
- *
- * ConvertedMap map = ConvertType.from(new A()).toMap();
- * System.out.println(map.toJsonString());
- * // {
- * //   "arr": [1, 2],
- * //   "s": "hi"
- * // }
- * }</pre>
+ * A high-performance hybrid type conversion library that combines Java Reflection and Jackson.
+ * <p>
+ * It goes beyond simple field copying to safely and intelligently handle lazy loading of JPA/Hibernate entities and complex data structures.
  *
  * @author vigfoot
  */
@@ -80,21 +67,51 @@ public class ConvertType {
     }
 
     /**
-     * 여러 DTO 객체 각에 대해 ValueObject 바인드를 생성합니다.
+     * 변환을 시작하는 {@link ValueObject}를 생성합니다.
+     * <p>
+     * 이 메서드는 지연 로딩(Lazy Loading)된 프록시 객체를 강제로 초기화하여 모든 필드를 포함시킵니다.
      *
-     * @param instance 변환 대상 객체
-     * @return ValueObject 인스턴스
+     * <hr>
+     *
+     * Creates a {@link ValueObject} to start the conversion process.
+     * <p>
+     * This method forces the initialization of lazy-loaded proxy objects to include all fields.
+     *
+     * @param instance The source object to convert.
+     * @return A {@link ValueObject} instance for full conversion.
      */
     public static ValueObject fromFull(Object instance) {
         return new ValueObject(instance, true);
     }
 
+    /**
+     * 변환을 시작하는 {@link ValueObject}를 생성합니다.
+     * <p>
+     * 이 메서드는 초기화되지 않은 지연 로딩(Lazy Loading) 프록시 객체를 {@code null}로 처리하여 {@code LazyInitializationException}을 방지합니다.
+     *
+     * <hr>
+     *
+     * Creates a {@link ValueObject} to start the conversion process.
+     * <p>
+     * This method treats uninitialized lazy-loaded proxy objects as {@code null} to prevent {@code LazyInitializationException}.
+     *
+     * @param instance The source object to convert.
+     * @return A {@link ValueObject} instance for default conversion.
+     */
     public static ValueObject from(Object instance) {
         return new ValueObject(instance, false);
     }
 
     /**
-     * 자동 클래스 객체를 변환할 수 있는 ValueObject 클래스
+     * 객체 변환 작업을 수행하는 내부 헬퍼 클래스입니다.
+     * <p>
+     * {@link ConvertType#from(Object)} 또는 {@link ConvertType#fromFull(Object)}를 통해 생성됩니다.
+     *
+     * <hr>
+     *
+     * An inner helper class that performs object conversion tasks.
+     * <p>
+     * It is created via {@link ConvertType#from(Object)} or {@link ConvertType#fromFull(Object)}.
      */
     public static class ValueObject {
         private static final int LIMIT_DEPTH = 50;
@@ -200,20 +217,135 @@ public class ConvertType {
         }
 
         /**
-         * 현재 보유한 객체 정보를 바탕으로 지정된 클래스 타입의 새로운 인스턴스를 생성하고 반환합니다.
+         * 현재 보유한 객체(A)를 기반으로 새로운 객체를 생성한 후,
+         * 인자로 받은 객체(B)의 필드 값 중 null이 아닌 값들을 덮어씌워 반환합니다.
          * <p>
-         * 이 메서드는 중간 Map 변환 과정 없이 소스 객체에서 타겟 객체로 직접 값을 매핑합니다.
-         * {@link ConvertField} 어노테이션을 사용하여 필드명 변경(mapping)이나 제외(ignore)를 처리할 수 있습니다.
+         * <strong>중요:</strong> 이 메서드를 사용하려면 대상 클래스에 반드시 **인자 없는 기본 생성자(No-args constructor)**가 있어야 합니다.
+         * 기본 생성자가 없으면 객체 복제에 실패하여 {@code null}을 반환할 수 있습니다.
+         *
+         * <p><strong>동작 방식:</strong>
+         * <ol>
+         *     <li>현재 객체(A)와 인자 객체(B)가 동일한 클래스인지 확인합니다. (다르면 {@code IllegalArgumentException} 발생)</li>
+         *     <li>현재 객체(A)를 복제하여 새로운 인스턴스(C)를 생성합니다.</li>
+         *     <li>인자 객체(B)의 필드를 순회하며, 값이 null이 아닌 경우에만 C의 해당 필드에 덮어씁니다.</li>
+         *     <li>덮어쓰기가 완료된 새로운 객체(C)를 반환합니다.</li>
+         * </ol>
+         *
+         * <p><strong>사용 예시:</strong>
+         * <pre>{@code
+         * class User {
+         *     private String username;
+         *     private String fullName;
+         *
+         *     public User(){}
+         *
+         *     public User(String username, String fullName){
+         *         this.username = username;
+         *         this.fullName = fullName;
+         *     }
+         * }
+         *
+         * User original = new User("user1", "Old Name");
+         * User update = new User(null, "New Name"); // username은 null
+         *
+         * // original을 복제한 새 객체에 update의 필드 중 null이 아닌 값("New Name")만 덮어씀
+         * User result = ConvertType.from(original).overwrite(update);
+         *
+         * // result.getUsername() -> "user1" (유지됨)
+         * // result.getFullName() -> "New Name" (덮어써짐)
+         * }</pre>
          *
          * <p><strong>주의사항:</strong>
          * <ul>
-         *     <li>{@link Collection}이나 {@link Map} 인터페이스를 상속받은 클래스는 직접 변환 대상으로 지정할 수 없습니다.</li>
-         *     <li>변환 중 오류가 발생하면 예외를 던지는 대신 로그를 남기고 {@code null}을 반환합니다.</li>
+         *     <li>원본 객체 A와 인자 객체 B는 수정되지 않습니다. (불변성 유지)</li>
+         *     <li>{@link Collection}, {@link Map} 등 컨테이너 타입은 지원하지 않으며, 커스텀 클래스(POJO)만 가능합니다.</li>
          * </ul>
          *
-         * @param clazz 변환할 대상 클래스 (DTO, VO 등)
-         * @param <T>   반환될 객체의 타입
-         * @return 변환된 객체 인스턴스, 또는 변환 실패 시 {@code null}
+         * <hr>
+         *
+         * Creates a new object based on the current object (A), then overwrites its fields
+         * with non-null values from the given source object (B).
+         * <p>
+         * <strong>IMPORTANT:</strong> The target class must have a **no-arguments constructor** for this method to work.
+         * If a no-args constructor is not available, object cloning will fail, and this method may return {@code null}.
+         *
+         * <p><strong>How it works:</strong>
+         * <ol>
+         *     <li>Checks if the current object (A) and the source object (B) are of the same class. (Throws {@code IllegalArgumentException} if not)</li>
+         *     <li>Creates a new instance (C) by cloning the current object (A).</li>
+         *     <li>Iterates through the fields of the source object (B) and overwrites the corresponding fields in C only if the value is not null.</li>
+         *     <li>Returns the new object (C) with the overwritten values.</li>
+         * </ol>
+         *
+         * <p><strong>Notes:</strong>
+         * <ul>
+         *     <li>The original object A and the source object B are not modified (immutability is maintained).</li>
+         *     <li>Container types like {@link Collection} and {@link Map} are not supported; only custom classes (POJOs) are allowed.</li>
+         * </ul>
+         *
+         * @param source The source object (B) containing the values to overwrite.
+         * @param <T>    The type of the object.
+         * @return A new object (C) with the merged values, or {@code null} on failure.
+         * @throws IllegalArgumentException if the source and target objects are not of the same class.
+         */
+        @SuppressWarnings("unchecked")
+        public <T> T overwrite(T source) {
+            if (instance == null || source == null) return null;
+
+            Class<?> clazz = instance.getClass();
+            if (!clazz.equals(source.getClass())) {
+                throw new IllegalArgumentException("Overwrite failed: Source and target must be of the same class. Target: " + clazz.getName() + ", Source: " + source.getClass().getName());
+            }
+
+            if (Collection.class.isAssignableFrom(clazz) || Map.class.isAssignableFrom(clazz)) {
+                throw new IllegalArgumentException("[ConvertType] Overwrite is not supported for Collection or Map types.");
+            }
+
+            // 1. 현재 객체(A)를 복제하여 새로운 인스턴스(C) 생성
+            T newInstance = (T) to(clazz);
+            if (newInstance == null) return null;
+
+            // 2. 소스 객체(B)의 필드를 순회하며 null이 아닌 값 덮어쓰기
+            List<Field> fields = getCachedFieldList(clazz);
+            for (Field field : fields) {
+                try {
+                    Object sourceValue = unProxy(field.get(source));
+                    
+                    if (sourceValue != null) {
+                        field.set(newInstance, sourceValue);
+                    }
+                } catch (Exception e) {
+                    System.err.println("[ConvertType] Failed to overwrite field: " + field.getName());
+                }
+            }
+
+            return newInstance;
+        }
+
+        /**
+         * 현재 보유한 객체 정보를 바탕으로 지정된 클래스 타입의 새로운 인스턴스를 생성하고 필드 값을 복사합니다.
+         * <p>
+         * <strong>중요:</strong> 이 메서드의 리플렉션 기반 변환을 안정적으로 사용하려면, 대상 클래스 {@code clazz}에
+         * 반드시 **인자 없는 기본 생성자(No-args constructor)**가 있어야 합니다.
+         * <p>
+         * 기본 생성자가 없는 경우, 내부적으로 {@link ObjectMapper#convertValue(Object, Class)}를 호출하여
+         * Jackson 라이브러리에 변환을 위임합니다. 이 경우, 대상 클래스에 public 필드나 public getter/setter가 없으면
+         * 변환에 실패할 수 있습니다. ({@code FAIL_ON_EMPTY_BEANS} 에러 발생 가능)
+         *
+         * <hr>
+         *
+         * Creates a new instance of the specified class and copies field values from the current object.
+         * <p>
+         * <strong>IMPORTANT:</strong> For stable reflection-based conversion, the target class {@code clazz}
+         * must have a **no-arguments constructor**.
+         * <p>
+         * If a no-args constructor is not found, this method delegates the conversion to the Jackson library
+         * by calling {@link ObjectMapper#convertValue(Object, Class)}. In this case, the conversion may fail
+         * if the target class has no public fields or public getters/setters (potentially causing a {@code FAIL_ON_EMPTY_BEANS} error).
+         *
+         * @param clazz The target class to convert to (e.g., DTO, VO).
+         * @param <T>   The type of the returned object.
+         * @return A new instance of the target class with copied values, or {@code null} on failure.
          */
         public <T> T to(Class<T> clazz) {
             return to(clazz, LIMIT_DEPTH);
@@ -411,12 +543,19 @@ public class ConvertType {
         }
 
         /**
-         * 변환된 객체를 Map 구조로 바꾸어 주고, JSON 형식으로도 이여진 수 있게합니다.
+         * 현재 객체를 {@link ConvertedMap}으로 변환합니다.
          * <p>
-         * 이 메서드는 현재 객체(instance)가 이미 Map 형태라면 그대로 복사하여 반환하고,
-         * 일반 객체라면 리플렉션을 통해 필드 값을 추출하여 Map으로 변환합니다.
+         * 현재 객체가 이미 {@link Map}이라면, 그 내용을 복사하여 새로운 {@link ConvertedMap}을 생성합니다.
+         * 일반 객체라면, 리플렉션을 통해 필드 값을 추출하여 {@link ConvertedMap}으로 변환합니다.
          *
-         * @return ConvertedMap 형식의 데이터
+         * <hr>
+         *
+         * Converts the current object to a {@link ConvertedMap}.
+         * <p>
+         * If the current object is already a {@link Map}, its contents are copied to a new {@link ConvertedMap}.
+         * If it is a regular object, its field values are extracted via reflection to create a {@link ConvertedMap}.
+         *
+         * @return A {@link ConvertedMap} representation of the object.
          */
         public ConvertedMap toMap() {
             ConvertedMap map = new ConvertedMap();
