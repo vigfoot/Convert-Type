@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class ConvertTypeTest {
 
@@ -105,19 +106,19 @@ class ConvertTypeTest {
 
     @Test
     @DisplayName("@ConvertField mapping 테스트")
-    void testmappingAnnotation() {
+    void testMappingAnnotation() {
         System.out.println("=== @ConvertField mapping 테스트 ===");
         // Given
-        UserEntity entity = new UserEntity("user_mappingd", "pw", "mappingd User", 25);
+        UserEntity entity = new UserEntity("user_renamed", "pw", "Renamed User", 25);
         System.out.println("Source: " + entity);
 
         // When
-        UserDtomappingd target = ConvertType.from(entity).to(UserDtomappingd.class);
+        UserDtoRenamed target = ConvertType.from(entity).to(UserDtoRenamed.class);
 
         // Then
         assertThat(target).isNotNull();
         System.out.println("Target: " + target);
-        assertThat(target.loginId).isEqualTo("user_mappingd"); // username -> loginId
+        assertThat(target.loginId).isEqualTo("user_renamed"); // username -> loginId
         System.out.println("--------------------------------------------------\n");
     }
 
@@ -140,6 +141,60 @@ class ConvertTypeTest {
         System.out.println("--------------------------------------------------\n");
     }
 
+    @Test
+    @DisplayName("overwrite 기능 테스트 - 기본 동작 (null 아닌 값만 덮어쓰기)")
+    void testOverwriteBasic() {
+        System.out.println("=== overwrite 기능 테스트 - 기본 동작 ===");
+        // Given
+        UserEntity original = new UserEntity("user1", "old_pw", "Old Name", 20);
+        UserEntity updateSource = new UserEntity(null, "new_pw", null, 30); // username, fullName은 null
+
+        System.out.println("Original: " + original);
+        System.out.println("Update Source: " + updateSource);
+
+        // When
+        UserEntity result = ConvertType.from(original).overwrite(updateSource);
+
+        // Then
+        assertThat(result).isNotNull();
+        System.out.println("Result: " + result);
+        System.out.println("Original: " + original);
+        System.out.println("Update Source: " + updateSource);
+
+        // 1. null이 아닌 값은 덮어써져야 함
+        assertThat(result.password).isEqualTo("new_pw");
+        assertThat(result.age).isEqualTo(30);
+
+        // 2. null인 값은 기존 값이 유지되어야 함
+        assertThat(result.username).isEqualTo("user1");
+        assertThat(result.fullName).isEqualTo("Old Name");
+
+        // 3. 새로운 객체여야 함 (원본 불변)
+        assertThat(result).isNotSameAs(original);
+        assertThat(result).isNotSameAs(updateSource);
+        System.out.println("--------------------------------------------------\n");
+    }
+
+    @Test
+    @DisplayName("overwrite 기능 테스트 - 다른 클래스 예외 발생")
+    void testOverwriteDifferentClassThrowsException() {
+        System.out.println("=== overwrite 기능 테스트 - 다른 클래스 예외 발생 ===");
+        // Given
+        UserEntity original = new UserEntity("user1", "pw", "Name", 20);
+        UserDto differentClass = new UserDto(); // 다른 클래스
+        System.out.println("Original: " + original);
+        System.out.println("Update Source (Different Class): " + differentClass);
+
+        // When & Then
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            ConvertType.from(original).overwrite(differentClass);
+        });
+
+        System.out.println("Exception thrown: " + exception.getMessage());
+        assertThat(exception.getMessage()).contains("Source and target must be of the same class");
+        System.out.println("--------------------------------------------------\n");
+    }
+
     // --- Test Classes ---
 
     static class UserEntity {
@@ -147,6 +202,9 @@ class ConvertTypeTest {
         String password;
         String fullName;
         int age;
+
+        // overwrite 기능을 위해 기본 생성자 추가
+        public UserEntity() {}
 
         public UserEntity(String username, String password, String fullName, int age) {
             this.username = username;
@@ -166,6 +224,8 @@ class ConvertTypeTest {
         String fullName;
         int age;
 
+        public UserDto() {}
+
         @Override
         public String toString() {
             return "UserDto{username='" + username + "', fullName='" + fullName + "', age=" + age + "}";
@@ -176,6 +236,8 @@ class ConvertTypeTest {
         String productId;
         String productName;
         double price;
+
+        public ProductEntity() {}
 
         public ProductEntity(String productId, String productName, double price) {
             this.productId = productId;
@@ -193,6 +255,8 @@ class ConvertTypeTest {
         String productName;
         double price;
 
+        public ProductDto() {}
+
         @Override
         public String toString() {
             return "ProductDto{productName='" + productName + "', price=" + price + "}";
@@ -203,6 +267,8 @@ class ConvertTypeTest {
         String orderId;
         ProductEntity product;
         int quantity;
+
+        public OrderEntity() {}
 
         public OrderEntity(String orderId, ProductEntity product, int quantity) {
             this.orderId = orderId;
@@ -221,6 +287,8 @@ class ConvertTypeTest {
         ProductDto product;
         int quantity;
 
+        public OrderDto() {}
+
         @Override
         public String toString() {
             return "OrderDto{orderId='" + orderId + "', product=" + product + ", quantity=" + quantity + "}";
@@ -230,6 +298,8 @@ class ConvertTypeTest {
     static class CategoryEntity {
         String name;
         List<ProductEntity> products;
+
+        public CategoryEntity() {}
 
         public CategoryEntity(String name, List<ProductEntity> products) {
             this.name = name;
@@ -245,6 +315,8 @@ class ConvertTypeTest {
     static class CategoryDto {
         String name;
         List<ProductDto> products;
+
+        public CategoryDto() {}
 
         @Override
         public String toString() {
@@ -276,14 +348,14 @@ class ConvertTypeTest {
         }
     }
 
-    static class UserDtomappingd {
+    static class UserDtoRenamed {
         @ConvertField(mapping = "username")
         String loginId;
         String fullName;
 
         @Override
         public String toString() {
-            return "UserDtomappingd{loginId='" + loginId + "', fullName='" + fullName + "'}";
+            return "UserDtoRenamed{loginId='" + loginId + "', fullName='" + fullName + "'}";
         }
     }
 
