@@ -9,8 +9,9 @@
 
 - **🚀 고성능 직접 매핑**: 중간 객체(`Map`) 생성 없이 소스 객체에서 타겟 객체로 값을 직접 주입하여 성능을 극대화했습니다.
 - **🛡️ JDK 9+ 모듈 시스템 대응**: `InaccessibleObjectException` 등 최신 JDK 환경에서의 접근 제어 이슈를 안전하게 처리합니다.
-- **🎯 정밀한 필드 제어**: `@ConvertField` 어노테이션을 통해 필드명 변경(`rename`)이나 변환 제외(`ignore`)를 손쉽게 설정할 수 있습니다.
+- **🎯 정밀한 필드 제어**: `@ConvertField` 어노테이션을 통해 필드명 변경(`mapping`)이나 변환 제외(`ignore`)를 손쉽게 설정할 수 있습니다.
 - **📦 컬렉션 완벽 지원**: `List`, `Set`, `Map`은 물론, `Arrays.asList()`로 생성된 불변 리스트도 수정 가능한 표준 컬렉션(`ArrayList` 등)으로 자동 변환합니다.
+- **🔄 객체 덮어쓰기 (Overwrite)**: 기존 객체를 기반으로 새로운 객체를 생성하고, 다른 객체의 값(null이 아닌 값)을 덮어쓰는 overwrite 기능을 제공합니다.
 - **Lazy Loading 제어**: 초기화되지 않은 Hibernate 프록시를 무시하거나(`from`), 강제로 로드(`fromFull`)할 수 있습니다.
 - **안전한 예외 처리**: 런타임 에러 발생 시 애플리케이션이 중단되지 않도록 로그를 남기고 `null`을 반환하거나 기본값으로 초기화합니다.
 
@@ -24,14 +25,14 @@
 <dependency>
     <groupId>com.forestfull</groupId>
     <artifactId>convert-type</artifactId>
-    <version>1.2.0</version>
+    <version>1.3.0</version>
 </dependency>
 ```
 
 ### Gradle (Groovy)
 
 ```groovy
-implementation 'com.forestfull:convert-type:1.2.0'
+implementation 'com.forestfull:convert-type:1.3.0'
 ```
 
 ---
@@ -41,6 +42,7 @@ implementation 'com.forestfull:convert-type:1.2.0'
 ### 1. 기본 객체 변환 (Entity -> DTO)
 
 가장 기본적인 사용법입니다. 필드명이 일치하면 자동으로 값이 복사됩니다.
+**주의:** 변환 대상 클래스(DTO)에는 반드시 **기본 생성자(No-args constructor)**가 있어야 합니다.
 
 ```java
 // Source Object (Entity)
@@ -58,7 +60,7 @@ System.out.println(dto.getUsername()); // "user1"
 
 ```java
 public class UserDto {
-    @ConvertField(rename = "username") // 소스 객체의 "username" 값을 이 필드에 매핑
+    @ConvertField(mapping = "user_name") // 소스 객체의 "user_name" 값을 이 필드에 매핑
     private String loginId;
 
     @ConvertField(ignore = true) // 이 필드는 변환하지 않음
@@ -66,7 +68,22 @@ public class UserDto {
 }
 ```
 
-### 3. JPA 엔티티 변환 (Lazy Loading 제어)
+### 3. 객체 덮어쓰기 (Overwrite)
+
+기존 객체의 값을 유지하면서, 다른 객체의 값(null이 아닌 값)만 덮어쓴 **새로운 객체**를 생성합니다.
+
+```java
+User original = new User("user1", "Old Name");
+User update = new User(null, "New Name"); // username은 null
+
+// original을 복제한 후, update의 값 중 null이 아닌 값만 덮어씀
+User result = ConvertType.from(original).overwrite(update);
+
+// result.getUsername() -> "user1" (유지됨)
+// result.getFullName() -> "New Name" (덮어써짐)
+```
+
+### 4. JPA 엔티티 변환 (Lazy Loading 제어)
 
 지연 로딩된 데이터를 어떻게 처리할지 한 줄로 결정합니다.
 
@@ -80,7 +97,7 @@ UserDto dto = ConvertType.from(userEntity).to(UserDto.class);
 UserDto fullDto = ConvertType.fromFull(userEntity).to(UserDto.class);
 ```
 
-### 4. 컬렉션 및 중첩 객체 변환
+### 5. 컬렉션 및 중첩 객체 변환
 
 리스트나 맵, 그리고 그 안에 포함된 객체들까지 재귀적으로 변환합니다.
 
@@ -99,7 +116,7 @@ class CategoryDto {
 CategoryDto dto = ConvertType.from(categoryEntity).to(CategoryDto.class);
 ```
 
-### 5. Map 변환 (ConvertedMap)
+### 6. Map 변환 (ConvertedMap)
 
 객체를 `Map` 구조로 변환하거나, `Map`을 객체로 변환할 수 있습니다.
 
