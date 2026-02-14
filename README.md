@@ -1,5 +1,8 @@
 # ConvertType 🚀
 
+[![Maven Central](https://img.shields.io/maven-central/v/com.forestfull/convert-type.svg?label=Maven%20Central)](https://mvnrepository.com/artifact/com.forestfull/convert-type)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 **ConvertType**은 Java Reflection과 Jackson을 결합한 **고성능 하이브리드 타입 변환 라이브러리**입니다.  
 단순한 필드 복사를 넘어, **JPA/Hibernate 엔티티의 지연 로딩(Lazy Loading) 제어**와 복잡한 데이터 구조를 안전하고 스마트하게 변환합니다.
 
@@ -25,14 +28,14 @@
 <dependency>
     <groupId>com.forestfull</groupId>
     <artifactId>convert-type</artifactId>
-    <version>1.3.0</version>
+    <version>1.3.2</version>
 </dependency>
 ```
 
 ### Gradle (Groovy)
 
 ```groovy
-implementation 'com.forestfull:convert-type:1.3.0'
+implementation 'com.forestfull:convert-type:1.3.2'
 ```
 
 ---
@@ -126,8 +129,9 @@ ConvertedMap map = ConvertType.from(userEntity).toMap();
 System.out.println(map.toJsonString()); // JSON 문자열 출력
 
 // Map -> Object
-Map<String, Object> sourceMap = new HashMap<>();
-sourceMap.put("username", "test");
+ConvertedMap sourceMap = new ConvertedMap();
+sourceMap.put("username","test");
+
 UserDto dto = ConvertType.from(sourceMap).to(UserDto.class);
 ```
 
@@ -149,4 +153,3 @@ UserDto dto = ConvertType.from(sourceMap).to(UserDto.class);
 
 -   **Apache License, Version 2.0**
 -   개발자: **@vigfoot**
--   공식 리포지토리: [forestfull/convert-type](https://github.com/forestfull/Convert-Type)
