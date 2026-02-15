@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -16,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * 단순한 필드 복사를 넘어, JPA/Hibernate 엔티티의 지연 로딩(Lazy Loading) 제어와 복잡한 데이터 구조를 안전하고 스마트하게 변환합니다.
  *
  * <hr>
- *
+ * <p>
  * A high-performance hybrid type conversion library that combines Java Reflection and Jackson.
  * <p>
  * It goes beyond simple field copying to safely and intelligently handle lazy loading of JPA/Hibernate entities and complex data structures.
@@ -24,47 +26,55 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author vigfoot
  */
 public class ConvertType {
+    static class Cache {
+        static class Clazz {
+            private static final Map<Class<?>, List<Field>> FIELD_LIST = new ConcurrentHashMap<>();
+            private static final Map<Class<?>, Map<String, Field>> FIELD_MAPS = new ConcurrentHashMap<>();
+            private static final Map<Class<?>, Optional<Constructor<?>>> CONSTRUCTORS = new ConcurrentHashMap<>();
+        }
+
+        static class Handle {
+            private static final Map<Field, MethodHandle> GETTERS = new ConcurrentHashMap<>();
+            private static final Map<Field, MethodHandle> SETTERS = new ConcurrentHashMap<>();
+        }
+
+        static class Hibernate {
+            private static final Class<?> PROXY_CLASS;
+            private static final MethodHandle GET_LAZY_INITIALIZER;
+            private static final MethodHandle IS_UNINITIALIZED;
+            private static final MethodHandle INITIALIZE;
+            private static final MethodHandle GET_IMPLEMENTATION;
+
+            static {
+                Class<?> proxy = null;
+                MethodHandle getLazy = null, isUninit = null, init = null, getImpl = null;
+                try {
+                    proxy = Class.forName("org.hibernate.proxy.HibernateProxy");
+                    Class<?> lazyInit = Class.forName("org.hibernate.proxy.LazyInitializer");
+
+                    // 하이버네이트 로직도 MethodHandle로 미리 구워둠 (성능 핵심)
+                    getLazy = LOOKUP.unreflect(proxy.getMethod("getHibernateLazyInitializer"));
+                    isUninit = LOOKUP.unreflect(lazyInit.getMethod("isUninitialized"));
+                    init = LOOKUP.unreflect(lazyInit.getMethod("initialize"));
+                    getImpl = LOOKUP.unreflect(lazyInit.getMethod("getImplementation"));
+                } catch (Throwable ignored) {}
+
+                PROXY_CLASS = proxy;
+                GET_LAZY_INITIALIZER = getLazy;
+                IS_UNINITIALIZED = isUninit;
+                INITIALIZE = init;
+                GET_IMPLEMENTATION = getImpl;
+            }
+        }
+    }
 
     public static final ObjectMapper jackson = new ObjectMapper()
             .registerModule(new JavaTimeModule())
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-    // Cache for class fields (List for iteration, Map for lookup)
-    private static final Map<Class<?>, List<Field>> FIELD_LIST_CACHE = new ConcurrentHashMap<>();
-    private static final Map<Class<?>, Map<String, Field>> FIELD_MAP_CACHE = new ConcurrentHashMap<>();
-    private static final Map<Class<?>, Optional<Constructor<?>>> CONSTRUCTOR_CACHE = new ConcurrentHashMap<>();
+    private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
+    private static final int LIMIT_DEPTH = 50;
 
-    // Hibernate Reflection Cache
-    private static final Class<?> HIBERNATE_PROXY_CLASS;
-    private static final Method HIBERNATE_GET_LAZY_INITIALIZER;
-    private static final Method HIBERNATE_IS_UNINITIALIZED;
-    private static final Method HIBERNATE_INITIALIZE;
-    private static final Method HIBERNATE_GET_IMPLEMENTATION;
-
-    static {
-        Class<?> proxyClass = null;
-        Method getLazy = null;
-        Method isUninit = null;
-        Method init = null;
-        Method getImpl = null;
-
-        try {
-            proxyClass = Class.forName("org.hibernate.proxy.HibernateProxy");
-            Class<?> lazyInitializerClass = Class.forName("org.hibernate.proxy.LazyInitializer");
-            getLazy = proxyClass.getMethod("getHibernateLazyInitializer");
-            isUninit = lazyInitializerClass.getMethod("isUninitialized");
-            init = lazyInitializerClass.getMethod("initialize");
-            getImpl = lazyInitializerClass.getMethod("getImplementation");
-        } catch (Throwable ignored) {
-            proxyClass = null;
-        }
-
-        HIBERNATE_PROXY_CLASS = proxyClass;
-        HIBERNATE_GET_LAZY_INITIALIZER = getLazy;
-        HIBERNATE_IS_UNINITIALIZED = isUninit;
-        HIBERNATE_INITIALIZE = init;
-        HIBERNATE_GET_IMPLEMENTATION = getImpl;
-    }
 
     /**
      * 변환을 시작하는 {@link ValueObject}를 생성합니다.
@@ -72,7 +82,7 @@ public class ConvertType {
      * 이 메서드는 지연 로딩(Lazy Loading)된 프록시 객체를 강제로 초기화하여 모든 필드를 포함시킵니다.
      *
      * <hr>
-     *
+     * <p>
      * Creates a {@link ValueObject} to start the conversion process.
      * <p>
      * This method forces the initialization of lazy-loaded proxy objects to include all fields.
@@ -90,7 +100,7 @@ public class ConvertType {
      * 이 메서드는 초기화되지 않은 지연 로딩(Lazy Loading) 프록시 객체를 {@code null}로 처리하여 {@code LazyInitializationException}을 방지합니다.
      *
      * <hr>
-     *
+     * <p>
      * Creates a {@link ValueObject} to start the conversion process.
      * <p>
      * This method treats uninitialized lazy-loaded proxy objects as {@code null} to prevent {@code LazyInitializationException}.
@@ -108,13 +118,12 @@ public class ConvertType {
      * {@link ConvertType#from(Object)} 또는 {@link ConvertType#fromFull(Object)}를 통해 생성됩니다.
      *
      * <hr>
-     *
+     * <p>
      * An inner helper class that performs object conversion tasks.
      * <p>
      * It is created via {@link ConvertType#from(Object)} or {@link ConvertType#fromFull(Object)}.
      */
     public static class ValueObject {
-        private static final int LIMIT_DEPTH = 50;
         private final Object instance;
         private final boolean isFullSearchHibernate;
 
@@ -123,8 +132,46 @@ public class ConvertType {
             this.isFullSearchHibernate = isFullSearchHibernate;
         }
 
+        private Object getFieldValue(Object target, Field field) {
+            try {
+                MethodHandle handle = Cache.Handle.GETTERS.computeIfAbsent(field, f -> {
+                    try {
+                        f.setAccessible(true);
+                        return LOOKUP.unreflectGetter(f);
+                    } catch (IllegalAccessException e) {
+                        System.err.println("MethodHandle Lookup failed for field: " + f.getName());
+                        return null;
+                    }
+                });
+
+
+                return handle.invoke(target);
+            } catch (Throwable t) {
+                System.err.println("[ConvertType] MethodHandle get failed: " + field.getName());
+                return null;
+            }
+        }
+
+        private void setFieldValue(Object target, Field field, Object value) {
+            try {
+                MethodHandle handle = Cache.Handle.SETTERS.computeIfAbsent(field, f -> {
+                    try {
+                        f.setAccessible(true);
+                        return LOOKUP.unreflectSetter(f);
+                    } catch (IllegalAccessException e) {
+                        throw new RuntimeException("MethodHandle Lookup failed for field: " + f.getName(), e);
+                    }
+                });
+                // 리플렉션의 field.set(target, value) 대신 핸들 실행
+                handle.invoke(target, value);
+            } catch (Throwable t) {
+                System.err.println("[ConvertType] MethodHandle set failed: " + field.getName());
+            }
+        }
+
+
         private static List<Field> getCachedFieldList(Class<?> clazz) {
-            return FIELD_LIST_CACHE.computeIfAbsent(clazz, k -> {
+            return Cache.Clazz.FIELD_LIST.computeIfAbsent(clazz, k -> {
                 List<Field> fields = new ArrayList<>();
                 Class<?> current = k;
                 Set<String> names = new HashSet<>();
@@ -148,7 +195,7 @@ public class ConvertType {
         }
 
         private static Map<String, Field> getCachedFieldMap(Class<?> clazz) {
-            return FIELD_MAP_CACHE.computeIfAbsent(clazz, k -> {
+            return Cache.Clazz.FIELD_MAPS.computeIfAbsent(clazz, k -> {
                 Map<String, Field> map = new HashMap<>();
                 for (Field field : getCachedFieldList(k)) {
                     map.put(field.getName(), field);
@@ -158,7 +205,7 @@ public class ConvertType {
         }
 
         private static Constructor<?> getCachedConstructor(Class<?> clazz) {
-            return CONSTRUCTOR_CACHE.computeIfAbsent(clazz, k -> {
+            return Cache.Clazz.CONSTRUCTORS.computeIfAbsent(clazz, k -> {
                 try {
                     Constructor<?> c = k.getDeclaredConstructor();
                     try {
@@ -176,23 +223,20 @@ public class ConvertType {
         }
 
         private Object unProxy(Object value) {
-            if (value == null) return null;
+            if (value == null || Cache.Hibernate.PROXY_CLASS == null) return value;
 
-            // Hibernate Proxy handling
-            if (HIBERNATE_PROXY_CLASS != null && HIBERNATE_PROXY_CLASS.isAssignableFrom(value.getClass())) {
+            if (Cache.Hibernate.PROXY_CLASS.isAssignableFrom(value.getClass())) {
                 try {
-                    Object initializer = HIBERNATE_GET_LAZY_INITIALIZER.invoke(value);
-                    boolean uninitialized = (boolean) HIBERNATE_IS_UNINITIALIZED.invoke(initializer);
+                    Object initializer = Cache.Hibernate.GET_LAZY_INITIALIZER.invoke(value);
+                    boolean uninitialized = (boolean) Cache.Hibernate.IS_UNINITIALIZED.invoke(initializer);
 
                     if (uninitialized) {
-                        if (!this.isFullSearchHibernate) {
-                            return null;
-                        }
-                        HIBERNATE_INITIALIZE.invoke(initializer);
+                        if (!this.isFullSearchHibernate) return null;
+                        Cache.Hibernate.INITIALIZE.invoke(initializer);
                     }
-                    return HIBERNATE_GET_IMPLEMENTATION.invoke(initializer);
-                } catch (Exception e) {
-                    System.err.println("[ConvertType] Failed to unproxy Hibernate object: " + e.getMessage());
+                    return Cache.Hibernate.GET_IMPLEMENTATION.invoke(initializer);
+                } catch (Throwable t) {
+                    System.err.println("[ConvertType] Failed to unProxy Hibernate object: " + t.getMessage());
                     return null;
                 }
             }
@@ -262,7 +306,7 @@ public class ConvertType {
          * </ul>
          *
          * <hr>
-         *
+         * <p>
          * Creates a new object based on the current object (A), then overwrites its fields
          * with non-null values from the given source object (B).
          * <p>
@@ -310,7 +354,7 @@ public class ConvertType {
             for (Field field : fields) {
                 try {
                     Object sourceValue = unProxy(field.get(source));
-                    
+
                     if (sourceValue != null) {
                         field.set(newInstance, sourceValue);
                     }
@@ -333,7 +377,7 @@ public class ConvertType {
          * 변환에 실패할 수 있습니다. ({@code FAIL_ON_EMPTY_BEANS} 에러 발생 가능)
          *
          * <hr>
-         *
+         * <p>
          * Creates a new instance of the specified class and copies field values from the current object.
          * <p>
          * <strong>IMPORTANT:</strong> For stable reflection-based conversion, the target class {@code clazz}
@@ -441,7 +485,7 @@ public class ConvertType {
                         // Collection 처리 로직
                         Iterable<?> sourceIterable = (Iterable<?>) value;
                         java.lang.reflect.Type genericType = targetField.getGenericType();
-                        
+
                         if (genericType instanceof java.lang.reflect.ParameterizedType) {
                             java.lang.reflect.ParameterizedType pt = (java.lang.reflect.ParameterizedType) genericType;
                             java.lang.reflect.Type[] typeArguments = pt.getActualTypeArguments();
@@ -449,10 +493,12 @@ public class ConvertType {
                             if (typeArguments.length > 0 && typeArguments[0] instanceof Class) {
                                 Class<?> targetItemClass = (Class<?>) typeArguments[0];
                                 Collection<Object> targetCol;
-                                
-                                if (Set.class.isAssignableFrom(fieldType)) targetCol = new LinkedHashSet<>();
-                                else if (List.class.isAssignableFrom(fieldType) || fieldType.isInterface()) targetCol = new ArrayList<>();
-                                else {
+
+                                if (Set.class.isAssignableFrom(fieldType)) {
+                                    targetCol = new LinkedHashSet<>();
+                                } else if (List.class.isAssignableFrom(fieldType) || fieldType.isInterface()) {
+                                    targetCol = new ArrayList<>();
+                                } else {
                                     try {
                                         targetCol = (Collection<Object>) fieldType.getDeclaredConstructor().newInstance();
                                     } catch (Exception e) {
@@ -549,7 +595,7 @@ public class ConvertType {
          * 일반 객체라면, 리플렉션을 통해 필드 값을 추출하여 {@link ConvertedMap}으로 변환합니다.
          *
          * <hr>
-         *
+         * <p>
          * Converts the current object to a {@link ConvertedMap}.
          * <p>
          * If the current object is already a {@link Map}, its contents are copied to a new {@link ConvertedMap}.
@@ -576,8 +622,8 @@ public class ConvertType {
             // Collection인 경우 (List, Set 등) -> 리스트 형태로 반환할 수 없으므로,
             // "data"라는 키에 리스트를 담아서 반환하거나, 에러를 뱉어야 함.
             if (instance instanceof Collection) {
-                 System.err.println("[ConvertType] Warning: Collection type cannot be converted to Map directly. Returning empty map.");
-                 return map;
+                System.err.println("[ConvertType] Warning: Collection type cannot be converted to Map directly. Returning empty map.");
+                return map;
             }
 
             // 일반 객체인 경우 필드 순회
