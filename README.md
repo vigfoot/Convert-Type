@@ -27,14 +27,14 @@
 <dependency>
     <groupId>com.forestfull</groupId>
     <artifactId>convert-type</artifactId>
-    <version>2.1.0</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 
 ### Gradle (Groovy)
 
 ```groovy
-implementation 'com.forestfull:convert-type:2.1.0'
+implementation 'com.forestfull:convert-type:2.0.0'
 ```
 
 ---
