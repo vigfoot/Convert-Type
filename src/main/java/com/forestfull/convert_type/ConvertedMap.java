@@ -41,7 +41,7 @@ public class ConvertedMap extends LinkedHashMap<String, Object> {
     }
 
     public <T> T to(Class<T> clazz) {
-        return new ConvertType.ValueObject(this, false).to(clazz);
+        return ConvertType.fromFull(this).to(clazz);
     }
 
     public String toJsonString() {

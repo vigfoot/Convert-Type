@@ -11,6 +11,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiConsumer;
 
 /**
  * Java Reflection과 Jackson을 결합한 고성능 하이브리드 타입 변환 라이브러리입니다.
@@ -57,7 +58,8 @@ public class ConvertType {
                     isUninit = LOOKUP.unreflect(lazyInit.getMethod("isUninitialized"));
                     init = LOOKUP.unreflect(lazyInit.getMethod("initialize"));
                     getImpl = LOOKUP.unreflect(lazyInit.getMethod("getImplementation"));
-                } catch (Throwable ignored) {}
+                } catch (Throwable ignored) {
+                }
 
                 PROXY_CLASS = proxy;
                 GET_LAZY_INITIALIZER = getLazy;
@@ -90,8 +92,8 @@ public class ConvertType {
      * @param instance The source object to convert.
      * @return A {@link ValueObject} instance for full conversion.
      */
-    public static ValueObject fromFull(Object instance) {
-        return new ValueObject(instance, true);
+    public static <C> ValueObject<C> fromFull(C instance) {
+        return new ValueObject<C>(instance, true);
     }
 
     /**
@@ -108,8 +110,8 @@ public class ConvertType {
      * @param instance The source object to convert.
      * @return A {@link ValueObject} instance for default conversion.
      */
-    public static ValueObject from(Object instance) {
-        return new ValueObject(instance, false);
+    public static <C> ValueObject<C> from(C instance) {
+        return new ValueObject<C>(instance, false);
     }
 
     /**
@@ -123,52 +125,14 @@ public class ConvertType {
      * <p>
      * It is created via {@link ConvertType#from(Object)} or {@link ConvertType#fromFull(Object)}.
      */
-    public static class ValueObject {
-        private final Object instance;
+    public static class ValueObject<C> {
+        private final C instance;
         private final boolean isFullSearchHibernate;
 
-        protected ValueObject(Object instance, boolean isFullSearchHibernate) {
+        protected ValueObject(C instance, boolean isFullSearchHibernate) {
             this.instance = instance;
             this.isFullSearchHibernate = isFullSearchHibernate;
         }
-
-        private Object getFieldValue(Object target, Field field) {
-            try {
-                MethodHandle handle = Cache.Handle.GETTERS.computeIfAbsent(field, f -> {
-                    try {
-                        f.setAccessible(true);
-                        return LOOKUP.unreflectGetter(f);
-                    } catch (IllegalAccessException e) {
-                        System.err.println("MethodHandle Lookup failed for field: " + f.getName());
-                        return null;
-                    }
-                });
-
-
-                return handle.invoke(target);
-            } catch (Throwable t) {
-                System.err.println("[ConvertType] MethodHandle get failed: " + field.getName());
-                return null;
-            }
-        }
-
-        private void setFieldValue(Object target, Field field, Object value) {
-            try {
-                MethodHandle handle = Cache.Handle.SETTERS.computeIfAbsent(field, f -> {
-                    try {
-                        f.setAccessible(true);
-                        return LOOKUP.unreflectSetter(f);
-                    } catch (IllegalAccessException e) {
-                        throw new RuntimeException("MethodHandle Lookup failed for field: " + f.getName(), e);
-                    }
-                });
-                // 리플렉션의 field.set(target, value) 대신 핸들 실행
-                handle.invoke(target, value);
-            } catch (Throwable t) {
-                System.err.println("[ConvertType] MethodHandle set failed: " + field.getName());
-            }
-        }
-
 
         private static List<Field> getCachedFieldList(Class<?> clazz) {
             return Cache.Clazz.FIELD_LIST.computeIfAbsent(clazz, k -> {
@@ -392,11 +356,15 @@ public class ConvertType {
          * @return A new instance of the target class with copied values, or {@code null} on failure.
          */
         public <T> T to(Class<T> clazz) {
-            return to(clazz, LIMIT_DEPTH);
+            return to(clazz, null, LIMIT_DEPTH);
+        }
+
+        public <T> T to(Class<T> clazz, BiConsumer<C, T> peek) {
+            return to(clazz, peek, LIMIT_DEPTH);
         }
 
         @SuppressWarnings("unchecked")
-        private <T> T to(Class<T> clazz, int depth) {
+        private <T> T to(Class<T> clazz, BiConsumer<C, T> peek, int depth) {
             if (depth <= 0) {
                 System.err.println("[ConvertType] Too many nested objects. Please check for circular references in your class: " + clazz.getName());
                 return null;
@@ -508,7 +476,11 @@ public class ConvertType {
 
                                 for (Object item : sourceIterable) {
                                     if (item != null) {
-                                        targetCol.add(new ValueObject(item, this.isFullSearchHibernate).to(targetItemClass, depth));
+                                        final Object valueObject = this.isFullSearchHibernate
+                                                ? ConvertType.fromFull(item).to(targetItemClass, null, depth)
+                                                : ConvertType.from(item).to(targetItemClass, null, depth);
+
+                                        targetCol.add(valueObject);
                                     } else {
                                         targetCol.add(null);
                                     }
@@ -549,7 +521,11 @@ public class ConvertType {
                                 for (Map.Entry<?, ?> entry : sourceMapVal.entrySet()) {
                                     Object mapValue = entry.getValue();
                                     if (mapValue != null) {
-                                        targetMap.put(entry.getKey(), new ValueObject(mapValue, this.isFullSearchHibernate).to(valueClass, depth));
+                                        final Object valueObject = this.isFullSearchHibernate
+                                                ? ConvertType.fromFull(mapValue).to(valueClass, null, depth)
+                                                : ConvertType.from(mapValue).to(valueClass, null, depth);
+
+                                        targetMap.put(entry.getKey(), valueObject);
                                     } else {
                                         targetMap.put(entry.getKey(), null);
                                     }
@@ -571,7 +547,11 @@ public class ConvertType {
                     } else {
                         // 재귀 변환 시도
                         try {
-                            targetField.set(newInstance, new ValueObject(value, this.isFullSearchHibernate).to(fieldType, depth));
+                            final Object valueObject = this.isFullSearchHibernate
+                                    ? ConvertType.fromFull(value).to(fieldType, null, depth)
+                                    : ConvertType.from(value).to(fieldType, null, depth);
+
+                            targetField.set(newInstance, valueObject);
                         } catch (Exception e) {
                             try {
                                 targetField.set(newInstance, jackson.convertValue(value, fieldType));
@@ -580,6 +560,9 @@ public class ConvertType {
                         }
                     }
                 }
+
+                if (peek != null) peek.accept((C) instance, newInstance);
+
             } catch (Exception e) {
                 System.err.println("[ConvertType] Error converting object to " + clazz.getName() + ": " + e.getMessage());
                 return null;
